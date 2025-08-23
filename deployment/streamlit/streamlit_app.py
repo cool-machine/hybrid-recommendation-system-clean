@@ -28,211 +28,85 @@ if "sample_cold" not in st.session_state:
 if "selected_uid" not in st.session_state:
     st.session_state.selected_uid = 0
 
-# Custom floating ball interface using HTML5 Canvas
-import streamlit.components.v1 as components
+# Let's go back to a working solution with proper CSS styling
+st.markdown("""
+<style>
+/* Force circular buttons with animations */
+div[data-testid="stButton"] > button {
+    width: 100px !important;
+    height: 100px !important;
+    border-radius: 50% !important;
+    font-size: 18px !important;
+    font-weight: bold !important;
+    color: white !important;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.8) !important;
+    animation: float 4s ease-in-out infinite !important;
+    transition: transform 0.3s ease !important;
+}
 
-# Create floating balls component with initialized session state
-floating_balls_html = f"""
-<!DOCTYPE html>
-<html>
-<head>
-    <style>
-        .ball-container {{
-            position: relative;
-            width: 100%;
-            height: 400px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border-radius: 20px;
-            overflow: hidden;
-            margin: 20px 0;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-        }}
-        .ball {{
-            position: absolute;
-            width: 80px;
-            height: 80px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-weight: bold;
-            font-size: 18px;
-            cursor: pointer;
-            transition: transform 0.2s;
-            text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
-            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-        }}
-        .ball:hover {{
-            transform: scale(1.2) !important;
-            z-index: 100;
-        }}
-        .warm-ball {{
-            background: radial-gradient(circle at 30% 30%, #87CEEB, #4A90E2, #1e3c72);
-            border: 3px solid #357ABD;
-        }}
-        .cold-ball {{
-            background: radial-gradient(circle at 30% 30%, #FF6B6B, #E74C3C, #8B0000);
-            border: 3px solid #C0392B;
-        }}
-        .section-title {{
-            color: white;
-            font-size: 24px;
-            font-weight: bold;
-            text-align: center;
-            margin: 10px 0;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
-        }}
-        #selectedUser {{
-            position: absolute;
-            top: 10px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0,0,0,0.7);
-            color: white;
-            padding: 10px 20px;
-            border-radius: 25px;
-            font-weight: bold;
-        }}
-    </style>
-</head>
-<body>
-    <div class="ball-container" id="ballContainer">
-        <div id="selectedUser">Click on a floating ball to select a user</div>
-    </div>
-    
-    <script>
-        let selectedUserId = 0;
-        let balls = [];
-        
-        // Sample user data
-        const warmUsers = {str(st.session_state.sample_users).replace('[', '').replace(']', '')};
-        const coldUsers = {str(st.session_state.sample_cold).replace('[', '').replace(']', '')};
-        
-        class FloatingBall {{
-            constructor(userId, isWarm, container) {{
-                this.userId = userId;
-                this.isWarm = isWarm;
-                this.container = container;
-                this.element = this.createElement();
-                this.container.appendChild(this.element);
-                
-                // Random starting position
-                this.x = Math.random() * (container.offsetWidth - 80);
-                this.y = Math.random() * (container.offsetHeight - 80);
-                
-                // Random velocity
-                this.vx = (Math.random() - 0.5) * 2;
-                this.vy = (Math.random() - 0.5) * 2;
-                
-                // Floating animation
-                this.time = Math.random() * Math.PI * 2;
-                this.floatSpeed = 0.02 + Math.random() * 0.02;
-                this.floatAmplitude = 10 + Math.random() * 20;
-                
-                this.updatePosition();
-                this.animate();
-            }}
-            
-            createElement() {{
-                const ball = document.createElement('div');
-                ball.className = `ball ${{this.isWarm ? 'warm-ball' : 'cold-ball'}}`;
-                ball.textContent = this.isWarm ? this.userId : `⭕${{this.userId}}`;
-                ball.addEventListener('click', () => this.select());
-                return ball;
-            }}
-            
-            select() {{
-                selectedUserId = this.userId;
-                document.getElementById('selectedUser').textContent = `Selected User: ${{this.userId}} (${{this.isWarm ? 'Warm' : 'Cold'}} user)`;
-                
-                // Send selection back to Streamlit
-                window.parent.postMessage({{
-                    type: 'ballClick',
-                    userId: this.userId
-                }}, '*');
-                
-                // Add selection effect
-                this.element.style.boxShadow = '0 0 30px rgba(255,255,0,0.8), 0 5px 15px rgba(0,0,0,0.3)';
-                setTimeout(() => {{
-                    this.element.style.boxShadow = '0 5px 15px rgba(0,0,0,0.3)';
-                }}, 1000);
-            }}
-            
-            updatePosition() {{
-                this.element.style.left = this.x + 'px';
-                this.element.style.top = this.y + 'px';
-            }}
-            
-            animate() {{
-                // Floating motion
-                this.time += this.floatSpeed;
-                const floatX = Math.sin(this.time) * this.floatAmplitude * 0.5;
-                const floatY = Math.cos(this.time * 1.2) * this.floatAmplitude;
-                
-                // Boundary bouncing
-                this.x += this.vx;
-                this.y += this.vy;
-                
-                if (this.x <= 0 || this.x >= this.container.offsetWidth - 80) {{
-                    this.vx *= -1;
-                }}
-                if (this.y <= 0 || this.y >= this.container.offsetHeight - 80) {{
-                    this.vy *= -1;
-                }}
-                
-                // Keep within bounds
-                this.x = Math.max(0, Math.min(this.container.offsetWidth - 80, this.x));
-                this.y = Math.max(0, Math.min(this.container.offsetHeight - 80, this.y));
-                
-                // Apply floating effect
-                this.element.style.left = (this.x + floatX) + 'px';
-                this.element.style.top = (this.y + floatY) + 'px';
-                
-                // Continue animation
-                requestAnimationFrame(() => this.animate());
-            }}
-        }}
-        
-        // Initialize balls
-        function initBalls() {{
-            const container = document.getElementById('ballContainer');
-            
-            // Create warm user balls
-            warmUsers.forEach(userId => {{
-                balls.push(new FloatingBall(userId, true, container));
-            }});
-            
-            // Create cold user balls  
-            coldUsers.forEach(userId => {{
-                balls.push(new FloatingBall(userId, false, container));
-            }});
-        }}
-        
-        // Start the animation when DOM is ready
-        document.addEventListener('DOMContentLoaded', initBalls);
-        if (document.readyState === 'loading') {{
-            document.addEventListener('DOMContentLoaded', initBalls);
-        }} else {{
-            initBalls();
-        }}
-    </script>
-</body>
-</html>
-"""
+div[data-testid="stButton"] > button:hover {
+    transform: scale(1.2) !important;
+}
 
-components.html(floating_balls_html, height=450)
+/* Animation keyframes */
+@keyframes float {
+    0%, 100% { transform: translateY(0px) rotate(0deg); }
+    25% { transform: translateY(-10px) rotate(5deg); }
+    50% { transform: translateY(-5px) rotate(-3deg); }
+    75% { transform: translateY(-12px) rotate(3deg); }
+}
 
-# Instructions and current selection
-st.markdown("### 🌟 Interactive Floating Ball Interface")
-st.markdown("**Blue balls** = Warm users (with history) | **Red balls** = Cold users (no history)")
+/* Stagger the animations */
+div[data-testid="stButton"]:nth-child(1) > button { animation-delay: 0s; }
+div[data-testid="stButton"]:nth-child(2) > button { animation-delay: 0.5s; }
+div[data-testid="stButton"]:nth-child(3) > button { animation-delay: 1s; }
+div[data-testid="stButton"]:nth-child(4) > button { animation-delay: 1.5s; }
+div[data-testid="stButton"]:nth-child(5) > button { animation-delay: 2s; }
+div[data-testid="stButton"]:nth-child(6) > button { animation-delay: 2.5s; }
+</style>
+
+<script>
+function styleButtons() {
+    const buttons = document.querySelectorAll('button');
+    buttons.forEach(button => {
+        const text = button.textContent.trim();
+        
+        if (/^\d+$/.test(text)) {
+            // Warm user button - blue
+            button.style.background = 'linear-gradient(135deg, #4A90E2, #1e3c72)';
+            button.style.border = '3px solid #357ABD';
+        } else if (text.includes('⭕')) {
+            // Cold user button - red  
+            button.style.background = 'linear-gradient(135deg, #E74C3C, #8B0000)';
+            button.style.border = '3px solid #C0392B';
+        } else if (text.includes('Get recommendations')) {
+            // Recommendation button - green, normal shape
+            button.style.background = 'linear-gradient(135deg, #28a745, #155724)';
+            button.style.border = '3px solid #20c997';
+            button.style.borderRadius = '10px';
+            button.style.width = 'auto';
+            button.style.height = 'auto';
+            button.style.animation = 'none';
+        }
+    });
+}
+
+// Run styling function
+styleButtons();
+setInterval(styleButtons, 1000);
+
+// Watch for new buttons
+const observer = new MutationObserver(styleButtons);
+observer.observe(document.body, {childList: true, subtree: true});
+</script>
+""", unsafe_allow_html=True)
 
 # Show current selection
 if st.session_state.selected_uid > 0:
     user_type = "🔥 Warm user" if st.session_state.selected_uid < 1000 else "🔴 Cold user"
     st.success(f"🎯 Selected: User {st.session_state.selected_uid} ({user_type})")
 else:
-    st.info("👆 Click on a floating ball above to select a user")
+    st.info("👆 Select a user to get recommendations")
 
 # Add selection buttons below the floating balls for functionality
 st.markdown("### 🔥 Warm Users (Blue Balls)")
