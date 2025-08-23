@@ -20,105 +20,116 @@ MAX_USER = 65_535
 st.set_page_config(page_title="Article Recommender Demo", page_icon="📰")
 st.title("📰 Hybrid Recommender Showcase")
 
-# Add the beautiful 3D bubble CSS and animations
-st.markdown("""
+# Inject powerful CSS with higher specificity and JavaScript for dynamic styling
+import streamlit.components.v1 as components
+
+components.html("""
 <style>
-/* Base bubble styling with 3D animations */
-.stButton>button {
+/* FORCE OVERRIDE ALL STREAMLIT BUTTON STYLES */
+div[data-testid="stButton"] > button,
+button[kind="secondary"],
+button[kind="primary"],
+.stButton > button,
+.stButton button {
     width: 110px !important;
     height: 110px !important;
     border-radius: 50% !important;
-    font-size: 22px !important;
-    font-weight: 600 !important;
+    font-size: 20px !important;
+    font-weight: 700 !important;
     color: #ffffff !important;
-    line-height: 1 !important;
+    line-height: 1.2 !important;
     cursor: pointer !important;
-    border: 2px solid rgba(255,255,255,0.4) !important;
-    backdrop-filter: blur(4px) !important;
-    background: transparent !important;
-    perspective: 1000px !important;
-    transform-style: preserve-3d !important;
-    animation: float3d 18s ease-in-out infinite !important;
-    transition: transform 0.25s !important;
-    will-change: transform !important;
-}
-
-.stButton>button:hover {
-    transform: scale(1.15) !important;
-}
-
-/* Warm user buttons - blue gradient */
-.warm .stButton>button {
+    border: 3px solid #4A90E2 !important;
     background: linear-gradient(135deg, #4A90E2 0%, #357ABD 100%) !important;
-    border: 2px solid #357ABD !important;
-    color: #ffffff !important;
-    box-shadow: inset -2px -2px 8px rgba(255,255,255,0.3), inset 2px 2px 8px rgba(0,0,0,0.2), 0 0 12px rgba(74,144,226,0.4) !important;
+    box-shadow: 0 8px 16px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.3) !important;
+    transition: all 0.3s ease !important;
+    transform-style: preserve-3d !important;
+    animation: float3d 15s ease-in-out infinite !important;
 }
 
-/* Cold user buttons - red gradient */  
-.cold .stButton>button {
-    background: linear-gradient(135deg, #E74C3C 0%, #C0392B 100%) !important;
-    border: 2px solid #C0392B !important;
-    color: #ffffff !important;
-    box-shadow: inset -2px -2px 8px rgba(255,255,255,0.3), inset 2px 2px 8px rgba(0,0,0,0.2), 0 0 12px rgba(231,76,60,0.4) !important;
+/* Hover effects */
+div[data-testid="stButton"] > button:hover,
+.stButton > button:hover {
+    transform: scale(1.15) translateY(-5px) !important;
+    box-shadow: 0 12px 24px rgba(0,0,0,0.3) !important;
 }
 
-/* 3D floating animation */
+/* 3D Animation Keyframes */
 @keyframes float3d {
-    0% { transform: translate3d(0,0,0) rotateX(0deg) rotateY(0deg); }
-    25% { transform: translate3d(18px,-25px,30px) rotateX(15deg) rotateY(-15deg); }
-    50% { transform: translate3d(-22px,18px,-35px) rotateX(-12deg) rotateY(12deg); }
-    75% { transform: translate3d(20px,12px,32px) rotateX(18deg) rotateY(-18deg); }
-    100% { transform: translate3d(0,0,0) rotateX(0deg) rotateY(0deg); }
+    0% { transform: translate3d(0px, 0px, 0px) rotateX(0deg) rotateY(0deg); }
+    25% { transform: translate3d(10px, -15px, 20px) rotateX(10deg) rotateY(-10deg); }
+    50% { transform: translate3d(-12px, 10px, -25px) rotateX(-8deg) rotateY(8deg); }
+    75% { transform: translate3d(15px, 8px, 22px) rotateX(12deg) rotateY(-12deg); }
+    100% { transform: translate3d(0px, 0px, 0px) rotateX(0deg) rotateY(0deg); }
 }
 
-/* Stagger animations so bubbles don't move in sync */
-.stButton>button:nth-of-type(2n) { animation-delay: 3s; animation-direction: reverse; }
-.stButton>button:nth-of-type(3n) { animation-delay: 6s; animation-direction: alternate; }
-.stButton>button:nth-of-type(4n) { animation-delay: 9s; animation-duration: 24s; }
-
-/* Additional depth effect */
-.warm .stButton>button::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    border-radius: 50%;
-    background: radial-gradient(circle at 30% 35%, rgba(120,170,255,0.70) 0%, rgba(120,170,255,0.35) 55%, rgba(120,170,255,0.15) 100%);
-    z-index: -1;
-}
-
-.cold .stButton>button::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    border-radius: 50%;
-    background: radial-gradient(circle at 30% 35%, rgba(240,90,90,0.70) 0%, rgba(240,90,90,0.35) 55%, rgba(240,90,90,0.15) 100%);
-    z-index: -1;
-}
-
-/* Ensure text is always visible */
-.stButton>button {
-    color: #ffffff !important;
-    text-shadow: 1px 1px 2px rgba(0,0,0,0.7) !important;
-}
-
-/* Get recommendations button styling */
-.stButton>button:not([data-testid*="warm"]):not([data-testid*="cold"]) {
-    background: linear-gradient(135deg, #28a745 0%, #20c997 100%) !important;
-    border: 2px solid #20c997 !important;
-    width: auto !important;
-    height: auto !important;
-    border-radius: 10px !important;
-    animation: none !important;
-}
+/* Different animation delays for staggered effect */
+div[data-testid="stButton"]:nth-of-type(2n) > button { animation-delay: 2s; animation-direction: reverse; }
+div[data-testid="stButton"]:nth-of-type(3n) > button { animation-delay: 4s; animation-direction: alternate; }
+div[data-testid="stButton"]:nth-of-type(4n) > button { animation-delay: 6s; animation-duration: 20s; }
+div[data-testid="stButton"]:nth-of-type(5n) > button { animation-delay: 8s; }
 </style>
-""", unsafe_allow_html=True)
+
+<script>
+// JavaScript to dynamically style buttons based on content
+function styleButtons() {
+    // Find all buttons
+    const buttons = document.querySelectorAll('button');
+    
+    buttons.forEach(button => {
+        const text = button.textContent.trim();
+        
+        // Style warm user buttons (numbers without ⭕️)
+        if (/^\\d+$/.test(text)) {
+            button.style.background = 'linear-gradient(135deg, #4A90E2 0%, #357ABD 100%)';
+            button.style.border = '3px solid #357ABD';
+            button.style.boxShadow = '0 8px 16px rgba(74,144,226,0.4), inset 0 1px 0 rgba(255,255,255,0.3)';
+        }
+        // Style cold user buttons (with ⭕️)
+        else if (text.includes('⭕')) {
+            button.style.background = 'linear-gradient(135deg, #E74C3C 0%, #C0392B 100%)';
+            button.style.border = '3px solid #C0392B';
+            button.style.boxShadow = '0 8px 16px rgba(231,76,60,0.4), inset 0 1px 0 rgba(255,255,255,0.3)';
+        }
+        // Style the recommendation button
+        else if (text.includes('Get recommendations')) {
+            button.style.width = 'auto';
+            button.style.height = 'auto';
+            button.style.borderRadius = '12px';
+            button.style.background = 'linear-gradient(135deg, #28a745 0%, #20c997 100%)';
+            button.style.border = '3px solid #20c997';
+            button.style.animation = 'none';
+            button.style.padding = '12px 24px';
+        }
+        
+        // Ensure all buttons have white text
+        button.style.color = '#ffffff';
+        button.style.fontWeight = '700';
+        button.style.textShadow = '1px 1px 2px rgba(0,0,0,0.8)';
+    });
+}
+
+// Run immediately and on DOM changes
+styleButtons();
+
+// Watch for new buttons being added
+const observer = new MutationObserver(function(mutations) {
+    mutations.forEach(function(mutation) {
+        if (mutation.type === 'childList') {
+            setTimeout(styleButtons, 100);
+        }
+    });
+});
+
+observer.observe(document.body, {
+    childList: true,
+    subtree: true
+});
+
+// Also run periodically to catch any missed updates
+setInterval(styleButtons, 1000);
+</script>
+""", height=0)
 
 # Initialize session state
 if "sample_users" not in st.session_state:
