@@ -132,11 +132,44 @@ st.session_state.selected_uid = int(manual_id)
 # Recommendations settings
 k = st.selectbox("How many recommendations?", [5, 10, 20], index=1)
 
-# Context settings
+# Context settings with validation
 with st.expander("Context (for cold users)"):
-    device_group = st.selectbox("Device", {"mobile": 0, "desktop": 1, "tablet": 2}, index=1)
-    os_id = st.selectbox("OS", {"Android": 0, "iOS": 1, "Windows": 2, "macOS": 3, "Linux": 4, "Other": 5}, index=3)
-    country = st.text_input("Country code", "US", max_chars=2)
+    device_group = st.selectbox("Device Type", ["Mobile", "Desktop", "Tablet"], index=1)
+    
+    # Create OS options based on device type
+    if device_group == "Mobile":
+        os_options = ["Android", "iOS", "Other Mobile"]
+        default_os = "Android"
+    elif device_group == "Desktop":
+        os_options = ["Windows", "macOS", "Linux", "Other Desktop"]
+        default_os = "Windows"
+    elif device_group == "Tablet":
+        os_options = ["Android", "iOS", "Windows", "Other Tablet"]
+        default_os = "iOS"
+    
+    os_selection = st.selectbox("Operating System", os_options, 
+                               index=os_options.index(default_os))
+    
+    # Map to original numeric values
+    device_mapping = {"Mobile": 0, "Desktop": 1, "Tablet": 2}
+    os_mapping = {
+        "Android": 0, "iOS": 1, "Windows": 2, "macOS": 3, 
+        "Linux": 4, "Other Mobile": 5, "Other Desktop": 5, "Other Tablet": 5
+    }
+    
+    device_group_val = device_mapping[device_group]
+    os_id = os_mapping[os_selection]
+    
+    country = st.text_input("Country code (ISO 2)", "US", max_chars=2)
+    
+    # Show validation info
+    st.caption(f"📱 Selected: {device_group} device running {os_selection}")
+    
+    # Validation warnings
+    if device_group == "Desktop" and os_selection in ["Android", "iOS"]:
+        st.error("❌ Invalid combination: Desktop devices don't run mobile operating systems")
+    elif device_group == "Mobile" and os_selection in ["Windows", "macOS", "Linux"]:
+        st.warning("⚠️ Unusual combination: Mobile devices rarely run desktop operating systems")
 
 # Get recommendations
 if st.button("🔍 Get recommendations", type="primary"):
@@ -146,7 +179,7 @@ if st.button("🔍 Get recommendations", type="primary"):
         payload = {
             "user_id": st.session_state.selected_uid, 
             "k": k, 
-            "env": {"device": device_group, "os": os_id, "country": country.upper()}
+            "env": {"device": device_group_val, "os": os_id, "country": country.upper()}
         }
         
         with st.spinner("🤖 Getting sophisticated recommendations..."):
