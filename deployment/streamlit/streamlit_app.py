@@ -20,10 +20,18 @@ MAX_USER = 65_535
 st.set_page_config(page_title="Article Recommender Demo", page_icon="📰")
 st.title("📰 Hybrid Recommender Showcase")
 
+# Initialize session state FIRST
+if "sample_users" not in st.session_state:
+    st.session_state.sample_users = random.sample(range(100), 12)
+if "sample_cold" not in st.session_state:
+    st.session_state.sample_cold = random.sample(range(1000, 1100), 12)
+if "selected_uid" not in st.session_state:
+    st.session_state.selected_uid = 0
+
 # Custom floating ball interface using HTML5 Canvas
 import streamlit.components.v1 as components
 
-# Create floating balls component
+# Create floating balls component with initialized session state
 floating_balls_html = f"""
 <!DOCTYPE html>
 <html>
@@ -214,14 +222,6 @@ floating_balls_html = f"""
 """
 
 components.html(floating_balls_html, height=450)
-
-# Initialize session state
-if "sample_users" not in st.session_state:
-    st.session_state.sample_users = random.sample(range(100), 12)
-if "sample_cold" not in st.session_state:
-    st.session_state.sample_cold = random.sample(range(1000, 1100), 12)
-if "selected_uid" not in st.session_state:
-    st.session_state.selected_uid = 0
 
 # Instructions and current selection
 st.markdown("### 🌟 Interactive Floating Ball Interface")
