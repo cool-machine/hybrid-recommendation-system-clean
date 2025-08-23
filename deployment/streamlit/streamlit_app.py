@@ -20,90 +20,145 @@ MAX_USER = 65_535
 st.set_page_config(page_title="Article Recommender Demo", page_icon="📰")
 st.title("📰 Hybrid Recommender Showcase")
 
-# Debug info
-st.sidebar.subheader("🔍 Debug Info")
-st.sidebar.write(f"API URL: {API_URL}")
-st.sidebar.write(f"Session state keys: {list(st.session_state.keys())}")
-
-
-# Simple styling - no complex CSS animations to avoid conflicts
+# Add the beautiful 3D bubble CSS and animations
 st.markdown("""
 <style>
-.warm .stButton>button {
-    background-color: #4A90E2 !important;
-    color: white !important;
-    border: 2px solid #357ABD !important;
-    border-radius: 50%;
-    width: 80px;
-    height: 80px;
+/* Base bubble styling with 3D animations */
+.stButton>button {
+    width: 110px !important;
+    height: 110px !important;
+    border-radius: 50% !important;
+    font-size: 22px !important;
+    font-weight: 600 !important;
+    color: #ffffff !important;
+    line-height: 1 !important;
+    cursor: pointer !important;
+    border: 2px solid rgba(255,255,255,0.4) !important;
+    backdrop-filter: blur(4px) !important;
+    background: transparent !important;
+    perspective: 1000px !important;
+    transform-style: preserve-3d !important;
+    animation: float3d 18s ease-in-out infinite !important;
+    transition: transform 0.25s !important;
+    will-change: transform !important;
 }
+
+.stButton>button:hover {
+    transform: scale(1.15) !important;
+}
+
+/* Warm user buttons - blue gradient */
+.warm .stButton>button {
+    background: linear-gradient(135deg, #4A90E2 0%, #357ABD 100%) !important;
+    border: 2px solid #357ABD !important;
+    color: #ffffff !important;
+    box-shadow: inset -2px -2px 8px rgba(255,255,255,0.3), inset 2px 2px 8px rgba(0,0,0,0.2), 0 0 12px rgba(74,144,226,0.4) !important;
+}
+
+/* Cold user buttons - red gradient */  
 .cold .stButton>button {
-    background-color: #E74C3C !important;
-    color: white !important;
+    background: linear-gradient(135deg, #E74C3C 0%, #C0392B 100%) !important;
     border: 2px solid #C0392B !important;
+    color: #ffffff !important;
+    box-shadow: inset -2px -2px 8px rgba(255,255,255,0.3), inset 2px 2px 8px rgba(0,0,0,0.2), 0 0 12px rgba(231,76,60,0.4) !important;
+}
+
+/* 3D floating animation */
+@keyframes float3d {
+    0% { transform: translate3d(0,0,0) rotateX(0deg) rotateY(0deg); }
+    25% { transform: translate3d(18px,-25px,30px) rotateX(15deg) rotateY(-15deg); }
+    50% { transform: translate3d(-22px,18px,-35px) rotateX(-12deg) rotateY(12deg); }
+    75% { transform: translate3d(20px,12px,32px) rotateX(18deg) rotateY(-18deg); }
+    100% { transform: translate3d(0,0,0) rotateX(0deg) rotateY(0deg); }
+}
+
+/* Stagger animations so bubbles don't move in sync */
+.stButton>button:nth-of-type(2n) { animation-delay: 3s; animation-direction: reverse; }
+.stButton>button:nth-of-type(3n) { animation-delay: 6s; animation-direction: alternate; }
+.stButton>button:nth-of-type(4n) { animation-delay: 9s; animation-duration: 24s; }
+
+/* Additional depth effect */
+.warm .stButton>button::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
     border-radius: 50%;
-    width: 80px;
-    height: 80px;
+    background: radial-gradient(circle at 30% 35%, rgba(120,170,255,0.70) 0%, rgba(120,170,255,0.35) 55%, rgba(120,170,255,0.15) 100%);
+    z-index: -1;
+}
+
+.cold .stButton>button::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    border-radius: 50%;
+    background: radial-gradient(circle at 30% 35%, rgba(240,90,90,0.70) 0%, rgba(240,90,90,0.35) 55%, rgba(240,90,90,0.15) 100%);
+    z-index: -1;
+}
+
+/* Ensure text is always visible */
+.stButton>button {
+    color: #ffffff !important;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.7) !important;
+}
+
+/* Get recommendations button styling */
+.stButton>button:not([data-testid*="warm"]):not([data-testid*="cold"]) {
+    background: linear-gradient(135deg, #28a745 0%, #20c997 100%) !important;
+    border: 2px solid #20c997 !important;
+    width: auto !important;
+    height: auto !important;
+    border-radius: 10px !important;
+    animation: none !important;
 }
 </style>
 """, unsafe_allow_html=True)
 
 # Initialize session state
 if "sample_users" not in st.session_state:
-    st.session_state.sample_users = random.sample(range(100), 8)
+    st.session_state.sample_users = random.sample(range(100), 12)
 if "sample_cold" not in st.session_state:
-    st.session_state.sample_cold = random.sample(range(1000, 1100), 8)
+    st.session_state.sample_cold = random.sample(range(1000, 1100), 12)
 if "selected_uid" not in st.session_state:
     st.session_state.selected_uid = 0
-if "debug_clicks" not in st.session_state:
-    st.session_state.debug_clicks = 0
 
-# Debug current state
-st.sidebar.write(f"Selected UID: {st.session_state.selected_uid}")
-st.sidebar.write(f"Debug clicks: {st.session_state.debug_clicks}")
-
-# Test basic button first
-if st.button("🧪 Test Basic Button"):
-    st.session_state.debug_clicks += 1
-    st.success(f"✅ Basic button works! Clicks: {st.session_state.debug_clicks}")
-
-# Show current selection
+# Show current selection with beautiful styling
 if st.session_state.selected_uid > 0:
-    st.info(f"🎯 Currently selected: User {st.session_state.selected_uid}")
+    st.success(f"🎯 Selected: User {st.session_state.selected_uid}")
+else:
+    st.info("👆 Click on a user bubble to select them")
 
-# Warm users section
+# Warm users section with beautiful floating bubbles
+st.markdown("<div class='warm'>", unsafe_allow_html=True)
 st.markdown("### 🔥 Warm users (have history)")
 
-try:
-    cols = st.columns(4)
-    for i, uid in enumerate(st.session_state.sample_users):
-        col = cols[i % 4]
-        if col.button(str(uid), key=f"warm_{uid}"):
-            st.session_state.selected_uid = uid
-            st.session_state.debug_clicks += 1
-            st.success(f"Selected warm user: {uid}")
-            # Force rerun to show selection immediately
-            st.rerun()
-except Exception as e:
-    st.error(f"Error in warm users section: {str(e)}")
-    st.code(traceback.format_exc())
+cols = st.columns(4)
+for i, uid in enumerate(st.session_state.sample_users):
+    col = cols[i % 4]
+    if col.button(str(uid), key=f"warm_{uid}"):
+        st.session_state.selected_uid = uid
+        st.rerun()
 
-# Cold users section  
+st.markdown("</div>", unsafe_allow_html=True)
+
+# Cold users section with beautiful floating bubbles
+st.markdown("<div class='cold'>", unsafe_allow_html=True)
 st.markdown("### 🔴 Cold users (no history)")
 
-try:
-    cols = st.columns(4)
-    for i, uid in enumerate(st.session_state.sample_cold):
-        col = cols[i % 4]
-        if col.button(f"⭕ {uid}", key=f"cold_{uid}"):
-            st.session_state.selected_uid = uid
-            st.session_state.debug_clicks += 1
-            st.success(f"Selected cold user: {uid}")
-            # Force rerun to show selection immediately
-            st.rerun()
-except Exception as e:
-    st.error(f"Error in cold users section: {str(e)}")
-    st.code(traceback.format_exc())
+cols = st.columns(4)
+for i, uid in enumerate(st.session_state.sample_cold):
+    col = cols[i % 4]
+    if col.button(f"⭕️ {uid}", key=f"cold_{uid}"):
+        st.session_state.selected_uid = uid
+        st.rerun()
+
+st.markdown("</div>", unsafe_allow_html=True)
 
 # Manual input
 st.markdown("### Or enter a user ID")
@@ -120,54 +175,62 @@ with st.expander("Context (for cold users)"):
     os_id = st.selectbox("OS", {"Android": 0, "iOS": 1, "Windows": 2, "macOS": 3, "Linux": 4, "Other": 5}, index=3)
     country = st.text_input("Country code", "US", max_chars=2)
 
-# Get recommendations - with detailed debugging
-if st.button("🔍 Get recommendations"):
-    st.write("🔍 Starting recommendation request...")
-    
-    # Show request details
-    payload = {
-        "user_id": st.session_state.selected_uid, 
-        "k": k, 
-        "env": {"device": device_group, "os": os_id, "country": country.upper()}
-    }
-    
-    st.write("📤 Request payload:", payload)
-    st.write("🌐 API URL:", API_URL)
-    
-    with st.spinner("Getting recommendations..."):
-        try:
-            st.write("📡 Sending request...")
-            response = requests.post(API_URL, json=payload, timeout=30)
-            
-            st.write(f"📨 Response status: {response.status_code}")
-            st.write(f"📨 Response headers: {dict(response.headers)}")
-            
-            if response.status_code != 200:
-                st.error(f"❌ API error {response.status_code}: {response.text}")
-            else:
+# Get recommendations
+if st.button("🔍 Get recommendations", type="primary"):
+    if st.session_state.selected_uid == 0:
+        st.warning("⚠️ Please select a user first!")
+    else:
+        payload = {
+            "user_id": st.session_state.selected_uid, 
+            "k": k, 
+            "env": {"device": device_group, "os": os_id, "country": country.upper()}
+        }
+        
+        with st.spinner("🤖 Getting sophisticated recommendations..."):
+            try:
+                response = requests.post(API_URL, json=payload, timeout=30)
+                response.raise_for_status()
                 data = response.json()
-                st.write("📥 Raw response:", data)
                 
                 st.success("✅ Recommendations received!")
-                st.write(f"**User:** {st.session_state.selected_uid}")
                 
+                # Show user info with better formatting
+                user_type = "🔥 Warm user (has history)" if st.session_state.selected_uid < 1000 else "🔴 Cold user (no history)"
+                st.info(f"**User {st.session_state.selected_uid}** • {user_type}")
+                
+                # Show user profile if available
+                if 'user_profile' in data:
+                    profile = data['user_profile']
+                    if profile.get('stored'):
+                        st.write(f"📱 **Profile:** Device: {profile['stored'].get('device')}, OS: {profile['stored'].get('os')}, Country: {profile['stored'].get('country')}")
+                
+                # Show ground truth
                 if data.get('ground_truth'):
-                    st.write(f"**Ground truth:** {data['ground_truth']}")
+                    st.write(f"🎯 **Ground truth click:** Article {data['ground_truth']}")
                 
+                # Show recommendations with beautiful formatting
                 recommendations = data.get("recommendations", [])
                 if recommendations:
-                    st.markdown("#### 📋 Recommended articles:")
+                    st.markdown("### 🎯 Recommended Articles")
+                    
+                    # Create beautiful recommendation cards
                     for rank, item in enumerate(recommendations, 1):
-                        st.write(f"{rank}. Article {item}")
+                        if rank == 1:
+                            st.markdown(f"🥇 **{rank}. Article {item}** ⭐")
+                        elif rank == 2:
+                            st.markdown(f"🥈 **{rank}. Article {item}**")
+                        elif rank == 3:
+                            st.markdown(f"🥉 **{rank}. Article {item}**")
+                        else:
+                            st.write(f"{rank}. Article {item}")
                 else:
                     st.warning("No recommendations returned")
                     
-        except requests.exceptions.Timeout:
-            st.error("❌ Request timed out - API might be slow or unavailable")
-        except requests.exceptions.ConnectionError:
-            st.error("❌ Connection error - cannot reach API")  
-        except requests.exceptions.RequestException as e:
-            st.error(f"❌ Request error: {str(e)}")
-        except Exception as e:
-            st.error(f"❌ Unexpected error: {str(e)}")
-            st.code(traceback.format_exc())
+            except requests.exceptions.Timeout:
+                st.error("⏰ Request timed out - API might be slow")
+            except requests.exceptions.ConnectionError:
+                st.error("🔌 Cannot reach API - please check connection")  
+            except Exception as e:
+                st.error(f"❌ Error: {str(e)}")
+                with st.expander("🔧 Debug info"):
+                    st.code(traceback.format_exc())
