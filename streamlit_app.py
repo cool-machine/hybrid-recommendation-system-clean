@@ -15,13 +15,19 @@ if streamlit_dir.exists():
 
 # Import the main streamlit app
 try:
-    # First try to import from streamlit_app.py in deployment folder
-    from streamlit_app import *
-except ImportError:
-    try:
-        # Fallback to app.py
-        from app import *
-    except ImportError:
-        import streamlit as st
-        st.error("Could not find the Streamlit app files. Please check the deployment/streamlit directory.")
-        st.stop()
+    # Import and execute the streamlit app
+    import streamlit as st
+    
+    # Import all the functions and run the app
+    exec(open(streamlit_dir / "streamlit_app.py").read())
+    
+except FileNotFoundError:
+    import streamlit as st
+    st.error("Could not find the Streamlit app files. Please check the deployment/streamlit directory.")
+    st.stop()
+except Exception as e:
+    import streamlit as st
+    st.error(f"Error loading app: {str(e)}")
+    import traceback
+    st.code(traceback.format_exc())
+    st.stop()

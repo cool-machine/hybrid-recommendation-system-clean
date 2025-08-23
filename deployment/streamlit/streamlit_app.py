@@ -14,6 +14,9 @@ except:
 if not API_URL:
     API_URL = "https://ocp9funcapp-recsys.azurewebsites.net/api/reco"
 
+# Constants
+MAX_USER = 65_535
+
 st.set_page_config(page_title="Article Recommender Demo", page_icon="📰")
 st.title("📰 Hybrid Recommender Showcase")
 
