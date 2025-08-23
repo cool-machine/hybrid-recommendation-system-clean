@@ -20,116 +20,200 @@ MAX_USER = 65_535
 st.set_page_config(page_title="Article Recommender Demo", page_icon="📰")
 st.title("📰 Hybrid Recommender Showcase")
 
-# Inject powerful CSS with higher specificity and JavaScript for dynamic styling
+# Custom floating ball interface using HTML5 Canvas
 import streamlit.components.v1 as components
 
-components.html("""
-<style>
-/* FORCE OVERRIDE ALL STREAMLIT BUTTON STYLES */
-div[data-testid="stButton"] > button,
-button[kind="secondary"],
-button[kind="primary"],
-.stButton > button,
-.stButton button {
-    width: 110px !important;
-    height: 110px !important;
-    border-radius: 50% !important;
-    font-size: 20px !important;
-    font-weight: 700 !important;
-    color: #ffffff !important;
-    line-height: 1.2 !important;
-    cursor: pointer !important;
-    border: 3px solid #4A90E2 !important;
-    background: linear-gradient(135deg, #4A90E2 0%, #357ABD 100%) !important;
-    box-shadow: 0 8px 16px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.3) !important;
-    transition: all 0.3s ease !important;
-    transform-style: preserve-3d !important;
-    animation: float3d 15s ease-in-out infinite !important;
-}
-
-/* Hover effects */
-div[data-testid="stButton"] > button:hover,
-.stButton > button:hover {
-    transform: scale(1.15) translateY(-5px) !important;
-    box-shadow: 0 12px 24px rgba(0,0,0,0.3) !important;
-}
-
-/* 3D Animation Keyframes */
-@keyframes float3d {
-    0% { transform: translate3d(0px, 0px, 0px) rotateX(0deg) rotateY(0deg); }
-    25% { transform: translate3d(10px, -15px, 20px) rotateX(10deg) rotateY(-10deg); }
-    50% { transform: translate3d(-12px, 10px, -25px) rotateX(-8deg) rotateY(8deg); }
-    75% { transform: translate3d(15px, 8px, 22px) rotateX(12deg) rotateY(-12deg); }
-    100% { transform: translate3d(0px, 0px, 0px) rotateX(0deg) rotateY(0deg); }
-}
-
-/* Different animation delays for staggered effect */
-div[data-testid="stButton"]:nth-of-type(2n) > button { animation-delay: 2s; animation-direction: reverse; }
-div[data-testid="stButton"]:nth-of-type(3n) > button { animation-delay: 4s; animation-direction: alternate; }
-div[data-testid="stButton"]:nth-of-type(4n) > button { animation-delay: 6s; animation-duration: 20s; }
-div[data-testid="stButton"]:nth-of-type(5n) > button { animation-delay: 8s; }
-</style>
-
-<script>
-// JavaScript to dynamically style buttons based on content
-function styleButtons() {
-    // Find all buttons
-    const buttons = document.querySelectorAll('button');
+# Create floating balls component
+floating_balls_html = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        .ball-container {{
+            position: relative;
+            width: 100%;
+            height: 400px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 20px;
+            overflow: hidden;
+            margin: 20px 0;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }}
+        .ball {{
+            position: absolute;
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 18px;
+            cursor: pointer;
+            transition: transform 0.2s;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }}
+        .ball:hover {{
+            transform: scale(1.2) !important;
+            z-index: 100;
+        }}
+        .warm-ball {{
+            background: radial-gradient(circle at 30% 30%, #87CEEB, #4A90E2, #1e3c72);
+            border: 3px solid #357ABD;
+        }}
+        .cold-ball {{
+            background: radial-gradient(circle at 30% 30%, #FF6B6B, #E74C3C, #8B0000);
+            border: 3px solid #C0392B;
+        }}
+        .section-title {{
+            color: white;
+            font-size: 24px;
+            font-weight: bold;
+            text-align: center;
+            margin: 10px 0;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        }}
+        #selectedUser {{
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 25px;
+            font-weight: bold;
+        }}
+    </style>
+</head>
+<body>
+    <div class="ball-container" id="ballContainer">
+        <div id="selectedUser">Click on a floating ball to select a user</div>
+    </div>
     
-    buttons.forEach(button => {
-        const text = button.textContent.trim();
+    <script>
+        let selectedUserId = 0;
+        let balls = [];
         
-        // Style warm user buttons (numbers without ⭕️)
-        if (/^\\d+$/.test(text)) {
-            button.style.background = 'linear-gradient(135deg, #4A90E2 0%, #357ABD 100%)';
-            button.style.border = '3px solid #357ABD';
-            button.style.boxShadow = '0 8px 16px rgba(74,144,226,0.4), inset 0 1px 0 rgba(255,255,255,0.3)';
-        }
-        // Style cold user buttons (with ⭕️)
-        else if (text.includes('⭕')) {
-            button.style.background = 'linear-gradient(135deg, #E74C3C 0%, #C0392B 100%)';
-            button.style.border = '3px solid #C0392B';
-            button.style.boxShadow = '0 8px 16px rgba(231,76,60,0.4), inset 0 1px 0 rgba(255,255,255,0.3)';
-        }
-        // Style the recommendation button
-        else if (text.includes('Get recommendations')) {
-            button.style.width = 'auto';
-            button.style.height = 'auto';
-            button.style.borderRadius = '12px';
-            button.style.background = 'linear-gradient(135deg, #28a745 0%, #20c997 100%)';
-            button.style.border = '3px solid #20c997';
-            button.style.animation = 'none';
-            button.style.padding = '12px 24px';
-        }
+        // Sample user data
+        const warmUsers = {str(st.session_state.sample_users).replace('[', '').replace(']', '')};
+        const coldUsers = {str(st.session_state.sample_cold).replace('[', '').replace(']', '')};
         
-        // Ensure all buttons have white text
-        button.style.color = '#ffffff';
-        button.style.fontWeight = '700';
-        button.style.textShadow = '1px 1px 2px rgba(0,0,0,0.8)';
-    });
-}
+        class FloatingBall {{
+            constructor(userId, isWarm, container) {{
+                this.userId = userId;
+                this.isWarm = isWarm;
+                this.container = container;
+                this.element = this.createElement();
+                this.container.appendChild(this.element);
+                
+                // Random starting position
+                this.x = Math.random() * (container.offsetWidth - 80);
+                this.y = Math.random() * (container.offsetHeight - 80);
+                
+                // Random velocity
+                this.vx = (Math.random() - 0.5) * 2;
+                this.vy = (Math.random() - 0.5) * 2;
+                
+                // Floating animation
+                this.time = Math.random() * Math.PI * 2;
+                this.floatSpeed = 0.02 + Math.random() * 0.02;
+                this.floatAmplitude = 10 + Math.random() * 20;
+                
+                this.updatePosition();
+                this.animate();
+            }}
+            
+            createElement() {{
+                const ball = document.createElement('div');
+                ball.className = `ball ${{this.isWarm ? 'warm-ball' : 'cold-ball'}}`;
+                ball.textContent = this.isWarm ? this.userId : `⭕${{this.userId}}`;
+                ball.addEventListener('click', () => this.select());
+                return ball;
+            }}
+            
+            select() {{
+                selectedUserId = this.userId;
+                document.getElementById('selectedUser').textContent = `Selected User: ${{this.userId}} (${{this.isWarm ? 'Warm' : 'Cold'}} user)`;
+                
+                // Send selection back to Streamlit
+                window.parent.postMessage({{
+                    type: 'ballClick',
+                    userId: this.userId
+                }}, '*');
+                
+                // Add selection effect
+                this.element.style.boxShadow = '0 0 30px rgba(255,255,0,0.8), 0 5px 15px rgba(0,0,0,0.3)';
+                setTimeout(() => {{
+                    this.element.style.boxShadow = '0 5px 15px rgba(0,0,0,0.3)';
+                }}, 1000);
+            }}
+            
+            updatePosition() {{
+                this.element.style.left = this.x + 'px';
+                this.element.style.top = this.y + 'px';
+            }}
+            
+            animate() {{
+                // Floating motion
+                this.time += this.floatSpeed;
+                const floatX = Math.sin(this.time) * this.floatAmplitude * 0.5;
+                const floatY = Math.cos(this.time * 1.2) * this.floatAmplitude;
+                
+                // Boundary bouncing
+                this.x += this.vx;
+                this.y += this.vy;
+                
+                if (this.x <= 0 || this.x >= this.container.offsetWidth - 80) {{
+                    this.vx *= -1;
+                }}
+                if (this.y <= 0 || this.y >= this.container.offsetHeight - 80) {{
+                    this.vy *= -1;
+                }}
+                
+                // Keep within bounds
+                this.x = Math.max(0, Math.min(this.container.offsetWidth - 80, this.x));
+                this.y = Math.max(0, Math.min(this.container.offsetHeight - 80, this.y));
+                
+                // Apply floating effect
+                this.element.style.left = (this.x + floatX) + 'px';
+                this.element.style.top = (this.y + floatY) + 'px';
+                
+                // Continue animation
+                requestAnimationFrame(() => this.animate());
+            }}
+        }}
+        
+        // Initialize balls
+        function initBalls() {{
+            const container = document.getElementById('ballContainer');
+            
+            // Create warm user balls
+            warmUsers.forEach(userId => {{
+                balls.push(new FloatingBall(userId, true, container));
+            }});
+            
+            // Create cold user balls  
+            coldUsers.forEach(userId => {{
+                balls.push(new FloatingBall(userId, false, container));
+            }});
+        }}
+        
+        // Start the animation when DOM is ready
+        document.addEventListener('DOMContentLoaded', initBalls);
+        if (document.readyState === 'loading') {{
+            document.addEventListener('DOMContentLoaded', initBalls);
+        }} else {{
+            initBalls();
+        }}
+    </script>
+</body>
+</html>
+"""
 
-// Run immediately and on DOM changes
-styleButtons();
-
-// Watch for new buttons being added
-const observer = new MutationObserver(function(mutations) {
-    mutations.forEach(function(mutation) {
-        if (mutation.type === 'childList') {
-            setTimeout(styleButtons, 100);
-        }
-    });
-});
-
-observer.observe(document.body, {
-    childList: true,
-    subtree: true
-});
-
-// Also run periodically to catch any missed updates
-setInterval(styleButtons, 1000);
-</script>
-""", height=0)
+components.html(floating_balls_html, height=450)
 
 # Initialize session state
 if "sample_users" not in st.session_state:
@@ -139,37 +223,31 @@ if "sample_cold" not in st.session_state:
 if "selected_uid" not in st.session_state:
     st.session_state.selected_uid = 0
 
-# Show current selection with beautiful styling
+# Instructions and current selection
+st.markdown("### 🌟 Interactive Floating Ball Interface")
+st.markdown("**Blue balls** = Warm users (with history) | **Red balls** = Cold users (no history)")
+
+# Show current selection
 if st.session_state.selected_uid > 0:
-    st.success(f"🎯 Selected: User {st.session_state.selected_uid}")
+    user_type = "🔥 Warm user" if st.session_state.selected_uid < 1000 else "🔴 Cold user"
+    st.success(f"🎯 Selected: User {st.session_state.selected_uid} ({user_type})")
 else:
-    st.info("👆 Click on a user bubble to select them")
+    st.info("👆 Click on a floating ball above to select a user")
 
-# Warm users section with beautiful floating bubbles
-st.markdown("<div class='warm'>", unsafe_allow_html=True)
-st.markdown("### 🔥 Warm users (have history)")
-
-cols = st.columns(4)
-for i, uid in enumerate(st.session_state.sample_users):
-    col = cols[i % 4]
-    if col.button(str(uid), key=f"warm_{uid}"):
+# Add selection buttons below the floating balls for functionality
+st.markdown("### 🔥 Warm Users (Blue Balls)")
+warm_cols = st.columns(6)
+for i, uid in enumerate(st.session_state.sample_users[:6]):
+    if warm_cols[i].button(f"{uid}", key=f"warm_select_{uid}"):
         st.session_state.selected_uid = uid
         st.rerun()
 
-st.markdown("</div>", unsafe_allow_html=True)
-
-# Cold users section with beautiful floating bubbles
-st.markdown("<div class='cold'>", unsafe_allow_html=True)
-st.markdown("### 🔴 Cold users (no history)")
-
-cols = st.columns(4)
-for i, uid in enumerate(st.session_state.sample_cold):
-    col = cols[i % 4]
-    if col.button(f"⭕️ {uid}", key=f"cold_{uid}"):
+st.markdown("### 🔴 Cold Users (Red Balls)")  
+cold_cols = st.columns(6)
+for i, uid in enumerate(st.session_state.sample_cold[:6]):
+    if cold_cols[i].button(f"⭕{uid}", key=f"cold_select_{uid}"):
         st.session_state.selected_uid = uid
         st.rerun()
-
-st.markdown("</div>", unsafe_allow_html=True)
 
 # Manual input
 st.markdown("### Or enter a user ID")
