@@ -18,8 +18,8 @@ try:
     # Import and execute the streamlit app
     import streamlit as st
     
-    # Import all the functions and run the app
-    exec(open(streamlit_dir / "streamlit_app.py").read())
+    # Run canonical Streamlit entrypoint used for local validation
+    exec(open(streamlit_dir / "app.py").read())
     
 except FileNotFoundError:
     import streamlit as st
