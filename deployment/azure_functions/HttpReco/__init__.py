@@ -16,10 +16,16 @@ import azure.functions as func
 app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
 
 # ---------------------------------------------------------------------------
-# Cold-start: load artefacts once
+# Cold-start: load artifacts once
 # ---------------------------------------------------------------------------
-ART = Path(__file__).parent.parent.parent.parent / "artifacts"
-logging.info("[Reco] Cold-start – loading artefacts from %s", ART)
+# Prefer non-Git runtime assets folder; keep legacy fallback for compatibility.
+ROOT = Path(__file__).resolve().parents[3]
+ART_CANDIDATES = [
+    ROOT / "external_runtime_assets" / "azure" / "artifacts",
+    ROOT / "artifacts",
+]
+ART = next((p for p in ART_CANDIDATES if p.exists()), ART_CANDIDATES[0])
+logging.info("[Reco] Cold-start - loading artifacts from %s", ART)
 model      = lgb.Booster(model_file=str(ART / "reranker.txt"))
 last_click = np.load(ART / "last_click.npy",          allow_pickle=True)
 cf_top300  = np.load(ART / "cf_i2i_top300.npy",       mmap_mode="r")
@@ -40,7 +46,7 @@ except Exception as e:
 
 
 # Load ground-truth clicks for demo display (valid_clicks.parquet).
-# Ensure the file is copied into artifacts/ before deployment.
+# Ensure the file is copied into runtime artifacts before deployment.
 try:
     import pandas as pd
     # Load ground truth and user profiles

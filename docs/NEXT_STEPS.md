@@ -317,7 +317,7 @@ cd /Users/gg1900/coding/recommender
 # Check current status
 git status
 pytest tests/ --tb=short
-curl -s https://ocp9funcapp-recsys.azurewebsites.net/api/health
+curl -s -X POST "https://ocp9funcapp-recsys.azurewebsites.net/api/reco" -H "Content-Type: application/json" -d '{"user_id":1001,"k":3}'
 
 # Start development
 source .venv/bin/activate  # or create new venv

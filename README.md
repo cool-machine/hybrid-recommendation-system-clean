@@ -84,6 +84,11 @@ pip install -r requirements.txt
 pytest tests/
 ```
 
+### Repository cleanup note
+
+Non-essential development/editor/research artifacts were moved from root to `removed/old_files/` to keep the runtime and submission-relevant structure clean.
+Useful runtime files that should stay out of GitHub (artifacts, local Streamlit secrets/config) are stored in `external_runtime_assets/`.
+
 ### Project Structure
 ```
 src/
@@ -97,9 +102,9 @@ deployment/
 └── streamlit/      # Web interface demo
 
 tests/
-├── unit/           # Algorithm unit tests  
-├── integration/    # API endpoint tests
-└── fixtures/       # Test data and mocks
+├── fixtures/       # Test data and mocks
+├── conftest.py     # Shared pytest fixtures/config
+└── README.md       # Testing scope and archived test notes
 ```
 
 ## Technical Stack
@@ -116,7 +121,7 @@ tests/
 2. **Context-Aware Cold Start**: Adapts to user device/location/OS
 3. **Production Deployment**: Live Azure Functions with monitoring
 4. **Real-Time API**: RESTful endpoints with proper validation
-5. **Comprehensive Testing**: Unit, integration, and system tests
+5. **Operational Validation**: runtime smoke checks and fixture-driven verification
 
 ---
 

@@ -6,11 +6,9 @@ Comprehensive test suite for the recommendation system.
 
 ```
 tests/
-├── unit/              # Unit tests for individual components
-├── integration/       # Integration tests for system components
 ├── fixtures/          # Test data and mock objects
 ├── conftest.py       # Pytest configuration and fixtures
-└── test_system.py    # System-level tests
+└── README.md         # Test scope and archive notes
 ```
 
 ## Running Tests
@@ -19,28 +17,22 @@ tests/
 # Run all tests
 pytest
 
-# Run only unit tests
-pytest tests/unit/
-
 # Run with coverage
 pytest --cov=src --cov-report=html
-
-# Run specific test
-pytest tests/unit/test_models.py::test_collaborative_filtering
 ```
 
 ## Test Categories
 
 ### Unit Tests
-- `test_models.py` - Model implementations
-- `test_config.py` - Configuration management
-- `test_service.py` - Service layer
-- `test_training.py` - Training utilities
+- Active tests:
+  - `tests/unit/test_config.py`
+  - `tests/unit/test_model_registry.py`
+  - `tests/unit/test_contextual_popularity.py`
+- Legacy unit tests remain archived in `removed/old_files/tests_legacy/unit/`
 
 ### Integration Tests
-- `test_api.py` - API endpoints
-- `test_deployment.py` - Deployment configurations
-- `test_pipeline.py` - End-to-end pipeline
+- Legacy integration tests were archived to `removed/old_files/tests_legacy/integration/`
+- Active test scaffolding currently focuses on reusable fixtures/config setup
 
 ### Fixtures
 - `sample_data.py` - Test datasets

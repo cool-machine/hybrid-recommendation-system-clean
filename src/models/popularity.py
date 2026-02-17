@@ -153,7 +153,7 @@ class ContextualPopularity(ColdStartHandler):
     def _extend_from_table(self, items: Optional[Any], n: int, 
                           recommendations: List[int], seen: set[int]) -> int:
         """Extend recommendations from an item array."""
-        if not items or n <= 0:
+        if items is None or n <= 0:
             return 0
         
         added = 0

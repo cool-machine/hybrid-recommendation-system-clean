@@ -25,10 +25,20 @@ artifacts/*.pkl
 artifacts/*.parquet
 artifacts/*.pth
 artifacts/*.txt
+# Runtime assets used outside GitHub (Azure/local deployment inputs)
+external_runtime_assets/**/*.npy
+external_runtime_assets/**/*.pkl
+external_runtime_assets/**/*.parquet
+external_runtime_assets/**/*.pth
+external_runtime_assets/**/*.txt
+external_runtime_assets/**/*.toml
 # Keep README and small config files
 !artifacts/README.md
 !artifacts/*.json
 !artifacts/*.yaml
+!external_runtime_assets/**/README.md
+!external_runtime_assets/**/*.json
+!external_runtime_assets/**/*.yaml
 
 # Sample data - keep small test files, exclude large datasets
 data/raw/
@@ -42,7 +52,7 @@ data/processed/
 */.ipynb_checkpoints/*
 
 # IDE
-.vscode/
+
 .idea/
 *.swp
 *.swo
@@ -91,7 +101,7 @@ temp/
 tmp/
 
 # Development tools and editors
-.vscode/
+
 .idea/
 *.swp
 *.swo
@@ -106,3 +116,7 @@ deployment/*/publish/
 .mypy_cache/
 .dmypy.json
 dmypy.json
+
+# Local-only packaging and archives (never push)
+removed/
+external_runtime_assets/

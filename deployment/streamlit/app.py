@@ -19,6 +19,12 @@ import streamlit as st
 API_URL = os.getenv("RECO_API_URL") or os.getenv("FUNCTION_URL") or ""
 MAX_USER = 65_535  # upper bound of user IDs
 RAND_COUNT = 12
+ROOT_DIR = pathlib.Path(__file__).resolve().parents[2]
+ART_CANDIDATES = [
+    ROOT_DIR / "external_runtime_assets" / "azure" / "artifacts",
+    ROOT_DIR / "artifacts",
+]
+ART_DIR = next((p for p in ART_CANDIDATES if p.exists()), ART_CANDIDATES[0])
 
 st.set_page_config(page_title="Article Recommender Demo", page_icon="📰")
 st.title("📰 Hybrid Recommender Showcase")
@@ -66,7 +72,7 @@ if not API_URL:
 # warm users (with ground-truth)
 GT_USERS: list[int]
 try:
-    npy_path = pathlib.Path(__file__).parent.parent / "functions_reco" / "artifacts" / "gt_users.npy"
+    npy_path = ART_DIR / "gt_users.npy"
     GT_USERS = np.load(npy_path).astype(int).tolist() if npy_path.exists() else []
 except Exception:
     GT_USERS = []
@@ -78,7 +84,7 @@ if not GT_USERS:
 # cold users (no history)
 COLD_USERS: list[int]
 try:
-    cold_path = pathlib.Path(__file__).parent.parent / "functions_reco" / "artifacts" / "cold_users.npy"
+    cold_path = ART_DIR / "cold_users.npy"
     COLD_USERS = np.load(cold_path).astype(int).tolist() if cold_path.exists() else []
 except Exception:
     COLD_USERS = []
