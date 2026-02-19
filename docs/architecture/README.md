@@ -1,248 +1,137 @@
 # System Architecture
 
-Overview of the recommendation system architecture and design principles.
+Overview of the recommendation system as currently implemented.
 
 ## High-Level Architecture
 
 ```mermaid
 graph TB
-    Client[Client Applications] --> API[API Gateway]
-    API --> Service[Recommendation Service]
+    Client[Client / Streamlit UI] --> API[Azure Functions HTTP Trigger]
+    API --> Service[Recommendation Logic]
     Service --> Models[Model Ensemble]
-    Service --> Data[Data Layer]
+    Service --> Data[Pre-loaded Artifacts]
     
-    Models --> CF[Collaborative Filtering]
-    Models --> Pop[Popularity-Based]
+    Models --> CF[Item-to-Item CF]
     Models --> ALS[ALS Matrix Factorization]
-    Models --> NN[Neural Networks]
+    Models --> TT[Two-Tower Neural Network]
+    Models --> Pop[Popularity Lists]
     Models --> Rerank[LightGBM Reranker]
     
-    Data --> Cache[Redis Cache]
-    Data --> Storage[Azure Blob Storage]
-    Data --> DB[(User Profiles)]
+    Data --> Storage[Azure Blob Storage / Local Files]
 ```
 
 ## Core Components
 
-### 1. API Layer
-- **Azure Functions**: Serverless compute platform
-- **RESTful API**: Standard HTTP/JSON interface
-- **Authentication**: Optional API key validation
-- **Rate Limiting**: Request throttling and quotas
+### 1. API Layer (`deployment/azure_functions/`)
+- **Azure Functions v2** (Python decorator model, anonymous auth)
+- **Single POST endpoint**: `/api/reco`
+- **Input validation**: user_id range check, JSON parsing
+- **No authentication or rate limiting** in current deployment
 
-### 2. Recommendation Service
-- **User Classification**: Cold vs warm user detection
-- **Context Resolution**: Profile loading and override handling
-- **Algorithm Orchestration**: Multi-model ensemble coordination
-- **Response Formatting**: Standardized output structure
+### 2. Recommendation Logic (`deployment/azure_functions/HttpReco/__init__.py`)
+- **User classification**: Cold (last_click == -1) vs warm
+- **Context resolution**: Stored user profile + optional env overrides
+- **Algorithm routing**: Cold → contextual popularity blend; Warm → ensemble + reranking
 
 ### 3. Model Ensemble
-Multiple algorithms working together:
 
-#### Cold Users (Context-Aware)
-- **Global Popularity**: Most popular items overall
-- **Device-Specific**: Popular on user's device type
-- **Regional**: Popular in user's geographic region
-- **Temporal**: Recently trending items
+#### Cold Users (Context-Aware Popularity)
+- **Global by OS**: Top items for the user's operating system
+- **Global by device**: Top items for the user's device group
+- **Regional by OS**: Top items for OS + country combination
+- **Regional by device**: Top items for device + country combination
+- **Global fallback**: Fill remaining slots from overall popularity list
 
-#### Warm Users (Personalized)
-- **Collaborative Filtering**: User-user similarity recommendations
-- **ALS Matrix Factorization**: Latent factor modeling
-- **Two-Tower Neural Network**: Deep learning embeddings
-- **LightGBM Reranking**: ML-based final scoring
+#### Warm Users (Personalized Ensemble)
+- **Item-to-Item CF**: Up to 300 candidates from last-clicked item similarity
+- **ALS Matrix Factorization**: Up to 100 additional candidates
+- **Global Popularity**: Up to 200 additional candidates
+- **Two-Tower Neural Network**: Up to 200 additional candidates
+- **LightGBM Reranker**: Final scoring of the ~800-1000 candidate pool
 
 ### 4. Data Layer
-- **Model Artifacts**: Pre-computed recommendations and embeddings
-- **User Profiles**: Device, OS, country information
-- **Interaction History**: Click and engagement data
-- **Feature Store**: Engineered features for reranking
+- **Model artifacts** (~406MB): `.npy` arrays, LightGBM model file, `.pkl` popularity tables, `.parquet` ground truth
+- **User profiles**: Device, OS, country extracted from `valid_clicks.parquet`
+- **All artifacts loaded once** at Azure Functions cold start and kept in memory
 
 ## Deployment Architecture
 
-### Cloud Infrastructure
 ```mermaid
 graph TB
-    Internet[Internet] --> LB[Azure Load Balancer]
-    LB --> Func[Azure Functions App]
-    Func --> Storage[Azure Blob Storage]
-    Func --> Cache[Redis Cache]
+    Internet[Internet] --> Func[Azure Functions App<br/>ocp9funcapp-recsys]
+    Func --> Artifacts[Model Artifacts<br/>406MB loaded at cold start]
     
-    Storage --> Models[Model Artifacts<br/>406MB]
-    Storage --> Data[User Data<br/>Parquet Files]
-    
-    Monitor[Application Insights] --> Func
-    Monitor --> Alerts[Alert Manager]
+    StreamlitCloud[Streamlit Cloud] --> Func
+    LocalDev[Local Dev] --> Func
 ```
 
-### Compute Resources
-- **Azure Functions**: Consumption plan with auto-scaling
-- **Memory**: 1.5GB allocated for model loading
-- **Cold Start**: ~5-10 seconds for initial model loading
-- **Warm Instances**: Sub-second response times
+### Compute
+- **Azure Functions**: Consumption plan (auto-scaling, pay-per-execution)
+- **Cold start**: ~5-10 seconds (loads all artifacts into memory)
+- **Warm requests**: Sub-second response times
 
-### Storage Architecture
-- **Blob Storage**: Model artifacts and datasets
-- **Hot Tier**: Frequently accessed models
-- **Cool Tier**: Historical data and backups
-- **Redundancy**: Geo-redundant storage (GRS)
+### Storage
+- Artifacts are bundled with the function app or loaded from `external_runtime_assets/azure/artifacts/` locally
 
-## Algorithm Architecture
+## Algorithm Pipeline
 
-### Multi-Stage Pipeline
+### Multi-Stage Candidate Generation (Warm Users)
 
 ```mermaid
 graph LR
-    Input[User Request] --> Classify[User Classification]
-    Classify --> Cold{Cold User?}
-    Classify --> Warm{Warm User?}
+    Input[User Request] --> Classify{Cold or Warm?}
     
-    Cold --> PopAlg[Popularity Algorithm]
-    PopAlg --> Context[Context Blending]
+    Classify -->|Cold| PopBlend[Contextual Popularity Blend]
+    PopBlend --> Output[Final k Recommendations]
     
-    Warm --> Stage1[Stage 1: CF - 300 items]
-    Stage1 --> Stage2[Stage 2: ALS - 100 items]
-    Stage2 --> Stage3[Stage 3: Popularity - 200 items]
-    Stage3 --> Stage4[Stage 4: Two-Tower - 200 items]
-    Stage4 --> Rerank[LightGBM Reranking]
-    
-    Context --> Output[Final Recommendations]
+    Classify -->|Warm| CF[CF: 300 candidates]
+    CF --> ALS[ALS: +100 candidates]
+    ALS --> Pop[Popularity: +200 candidates]
+    Pop --> TT[Two-Tower: +200 candidates]
+    TT --> Rerank[LightGBM Reranker]
     Rerank --> Output
 ```
 
-### Feature Engineering
-For LightGBM reranking:
-1. **CF Score**: Collaborative filtering confidence
-2. **ALS Score**: Matrix factorization rating prediction
-3. **Popularity Score**: Global and contextual popularity
-4. **Neural Score**: Two-tower model embedding similarity
-5. **User-Item Affinity**: Historical interaction patterns
-6. **Temporal Score**: Recency and trending factors
+### Feature Engineering (6 features for LightGBM)
+1. **CF rank**: Position in CF candidate list (or 1001 if absent)
+2. **ALS rank**: Position in ALS candidate list (or 1001 if absent)
+3. **Popularity rank**: Position in popularity list (or 1001 if absent)
+4. **Two-Tower rank**: Position in neural candidate list (or 1001 if absent)
+5. **Overall rank**: Position in the combined candidate pool
+6. **Cosine similarity**: User–item embedding dot product (Two-Tower vectors)
 
-## Data Flow
+## Request Flow
 
-### Request Processing
-1. **API Gateway**: Receives HTTP request
-2. **Input Validation**: Parameter checking and sanitization
-3. **User Classification**: Determine cold/warm status
-4. **Context Resolution**: Load/override user profile
-5. **Algorithm Selection**: Route to appropriate pipeline
-6. **Candidate Generation**: Multi-stage recommendation
-7. **Response Formatting**: Structure output JSON
-
-### Model Loading
-```mermaid
-sequenceDiagram
-    participant Client
-    participant API
-    participant Service
-    participant Storage
-    
-    Client->>API: Request recommendations
-    API->>Service: Forward request
-    
-    alt First request (cold start)
-        Service->>Storage: Load model artifacts
-        Storage-->>Service: Return 406MB of models
-        Service->>Service: Initialize algorithms
-    end
-    
-    Service->>Service: Generate recommendations
-    Service-->>API: Return results
-    API-->>Client: HTTP response
-```
-
-## Scalability Design
-
-### Horizontal Scaling
-- **Stateless Services**: No server-side session storage
-- **Function Instances**: Auto-scaling based on demand
-- **Load Distribution**: Azure's built-in load balancing
-- **Regional Deployment**: Multi-region for global users
-
-### Performance Optimization
-- **Model Caching**: Keep models in memory between requests
-- **Lazy Loading**: Load artifacts only when needed
-- **Batch Processing**: Group operations where possible
-- **Pre-computation**: Offline candidate generation
-
-### Monitoring and Observability
-- **Application Insights**: Detailed telemetry and logging
-- **Performance Metrics**: Response times, success rates
-- **Custom Dashboards**: Business and technical KPIs
-- **Alerting**: Automated incident detection
-
-## Security Architecture
-
-### Data Protection
-- **Encryption in Transit**: HTTPS/TLS for all communications
-- **Encryption at Rest**: Azure Storage encryption
-- **Access Control**: Role-based access to resources
-- **Data Minimization**: Store only necessary user data
-
-### API Security
-- **Input Validation**: Strict parameter checking
-- **Rate Limiting**: Prevent abuse and DDoS
-- **CORS Configuration**: Cross-origin request control
-- **Audit Logging**: Track all API interactions
+1. **POST /api/reco** received by Azure Functions
+2. **JSON parsed**, user_id validated against `last_click` array length
+3. **User profile loaded** from `valid_clicks.parquet` data, env overrides applied
+4. **Cold/warm check**: `last_click[user_id] == -1` → cold path
+5. **Candidate generation** (warm) or **popularity blend** (cold)
+6. **LightGBM reranking** (warm users only)
+7. **JSON response** with recommendations, ground_truth, and user_profile
 
 ## Technology Stack
 
-### Core Technologies
 - **Language**: Python 3.10+
-- **Framework**: Azure Functions
-- **ML Libraries**: 
-  - pandas, numpy (data processing)
-  - lightgbm (gradient boosting)
-  - implicit (matrix factorization)
-  - scikit-learn (utilities)
-
-### Infrastructure
-- **Cloud Platform**: Microsoft Azure
-- **Compute**: Azure Functions (Consumption)
-- **Storage**: Azure Blob Storage
-- **Monitoring**: Application Insights
-- **CI/CD**: GitHub Actions
-
-### Development Tools
-- **Version Control**: Git with GitHub
-- **Testing**: pytest with comprehensive test suite
-- **Documentation**: Markdown with Mermaid diagrams
-- **Local Development**: Azure Functions Core Tools
+- **API Framework**: Azure Functions v2 (decorator model)
+- **Validation**: Pydantic (in `src/api.py`); manual checks in deployed function
+- **ML**: NumPy, LightGBM, pandas, pyarrow
+- **Frontend**: Streamlit (deployed on Streamlit Cloud)
+- **Testing**: pytest with unittest.mock
+- **Local dev**: Azure Functions Core Tools
 
 ## Design Principles
 
-### 1. Modularity
-- **Pluggable Algorithms**: Easy to add/remove models
-- **Interface Contracts**: Consistent API between components
-- **Separation of Concerns**: Clear responsibility boundaries
+### Modularity
+- `src/` contains a clean OOP architecture (`Config`, `ModelRegistry`, `RecommendationService`)
+- `deployment/azure_functions/HttpReco/` contains the production-optimized flat implementation
+- Both share the same algorithmic logic
 
-### 2. Scalability
-- **Stateless Design**: No server-side state dependencies
-- **Auto-scaling**: Demand-driven resource allocation
-- **Performance First**: Optimize for response time
+### Graceful Degradation
+- Cold-start popularity blend fills missing buckets from global list
+- Missing popularity tables fall back to `pop_list.npy`
+- Missing ground truth / user profiles are tolerated (logged as warnings)
 
-### 3. Reliability
-- **Graceful Degradation**: Fallback algorithms for failures
-- **Circuit Breakers**: Prevent cascade failures
-- **Health Monitoring**: Proactive issue detection
-
-### 4. Maintainability
-- **Clean Code**: Readable and well-documented
-- **Comprehensive Testing**: Unit, integration, and system tests
-- **Version Control**: Proper branching and release management
-
-## Future Architecture
-
-### Planned Enhancements
-1. **Real-time Learning**: Online model updates
-2. **A/B Testing Framework**: Algorithm comparison platform
-3. **Feature Store**: Centralized feature management
-4. **Stream Processing**: Real-time interaction processing
-5. **Multi-tenancy**: Support for multiple clients
-
-### Technology Evolution
-- **Kubernetes**: Container orchestration for complex deployments
-- **Apache Kafka**: Real-time event streaming
-- **MLflow**: ML lifecycle management
-- **Redis**: Distributed caching layer
-- **GraphQL**: More flexible API querying
+### Stateless Design
+- All state is loaded once at cold start from artifact files
+- No external database or cache dependencies at runtime

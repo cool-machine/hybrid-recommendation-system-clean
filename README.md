@@ -38,7 +38,7 @@ final_recommendations = lightgbm_reranker.predict(
 - **User Base**: 65,535 users with real profile data
 
 ### Code Quality
-- **1,446 lines** of production Python code
+- **~1,500 lines** of production Python code
 - **Full type annotations** with modern Python 3.10+ features
 - **Comprehensive error handling** and logging
 - **Clean architecture** with separation of concerns
@@ -86,30 +86,33 @@ pytest tests/
 
 ### Repository cleanup note
 
-Non-essential development/editor/research artifacts were moved from root to `removed/old_files/` to keep the runtime and submission-relevant structure clean.
-Useful runtime files that should stay out of GitHub (artifacts, local Streamlit secrets/config) are stored in `external_runtime_assets/`.
+Non-essential presentation and submission artifacts are kept in `secondary_assets/` (gitignored).
+Runtime files that should stay out of GitHub (model artifacts, local Streamlit secrets/config) are stored in `external_runtime_assets/` (gitignored).
 
 ### Project Structure
 ```
 src/
 ├── models/          # ML algorithm implementations
+├── training/        # Data preparation utilities
 ├── service.py       # Business logic orchestration
-├── api.py          # FastAPI endpoints with validation
-└── config.py       # Configuration management
+├── api.py           # Azure Functions API with Pydantic validation
+└── config.py        # Configuration management
 
 deployment/
-├── azure_functions/ # Production Azure Functions
-└── streamlit/      # Web interface demo
+├── azure_functions/ # Production Azure Functions backend
+└── streamlit/       # Web interface demo
 
+notebooks/           # Research notebooks (CF, ALS, ensemble)
+data/sample/         # Small sample datasets for testing
 tests/
-├── fixtures/       # Test data and mocks
-├── conftest.py     # Shared pytest fixtures/config
-└── README.md       # Testing scope and archived test notes
+├── unit/            # Unit tests
+├── fixtures/        # Test data and mocks
+└── conftest.py      # Shared pytest fixtures/config
 ```
 
 ## Technical Stack
 
-**Backend**: Python 3.10, FastAPI, Pydantic
+**Backend**: Python 3.10, Azure Functions, Pydantic
 **ML**: NumPy, SciPy, LightGBM, implicit
 **Infrastructure**: Azure Functions, Azure Blob Storage
 **Frontend**: Streamlit with responsive UI

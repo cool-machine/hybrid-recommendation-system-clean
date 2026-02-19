@@ -120,3 +120,6 @@ dmypy.json
 # Local-only packaging and archives (never push)
 removed/
 external_runtime_assets/
+secondary_assets/
+presentation_model_input/
+presentation_model_input.zip

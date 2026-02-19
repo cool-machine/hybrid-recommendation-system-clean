@@ -6,9 +6,7 @@ This directory contains sample and test datasets for the recommendation system.
 
 ```
 data/
-├── sample/           # Small sample datasets for testing
-├── test/            # Test datasets for unit tests
-└── examples/        # Example data for documentation
+└── sample/           # Small sample datasets for testing and demos
 ```
 
 ## Sample Data

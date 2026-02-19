@@ -6,9 +6,14 @@ Comprehensive test suite for the recommendation system.
 
 ```
 tests/
+├── unit/              # Unit tests
+│   ├── test_config.py
+│   ├── test_model_registry.py
+│   └── test_contextual_popularity.py
+├── integration/       # Integration tests (placeholder)
 ├── fixtures/          # Test data and mock objects
-├── conftest.py       # Pytest configuration and fixtures
-└── README.md         # Test scope and archive notes
+├── conftest.py        # Pytest configuration and shared fixtures
+└── README.md          # This file
 ```
 
 ## Running Tests
@@ -24,20 +29,17 @@ pytest --cov=src --cov-report=html
 ## Test Categories
 
 ### Unit Tests
-- Active tests:
-  - `tests/unit/test_config.py`
-  - `tests/unit/test_model_registry.py`
-  - `tests/unit/test_contextual_popularity.py`
-- Legacy unit tests remain archived in `removed/old_files/tests_legacy/unit/`
+- `tests/unit/test_config.py` — Config dataclass creation and validation
+- `tests/unit/test_model_registry.py` — ModelRegistry registration and lookup
+- `tests/unit/test_contextual_popularity.py` — Cold-start popularity logic
 
 ### Integration Tests
-- Legacy integration tests were archived to `removed/old_files/tests_legacy/integration/`
-- Active test scaffolding currently focuses on reusable fixtures/config setup
+- `tests/integration/` is scaffolded for future integration tests
 
 ### Fixtures
-- `sample_data.py` - Test datasets
-- `mock_models.py` - Mock model objects
-- `test_config.py` - Test configurations
+- `fixtures/sample_data.py` — Test datasets
+- `fixtures/mock_models.py` — Mock model objects
+- `fixtures/test_config.py` — Test configurations
 
 ## Test Data
 
