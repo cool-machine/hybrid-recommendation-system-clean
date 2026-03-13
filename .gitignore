@@ -83,6 +83,7 @@ config/secrets.json
 
 # Testing
 .pytest_cache/
+# (auto-generated README inside pytest cache is not project documentation)
 .coverage
 coverage.xml
 htmlcov/
@@ -123,3 +124,6 @@ external_runtime_assets/
 secondary_assets/
 presentation_model_input/
 presentation_model_input.zip
+
+# Submission package (large binaries, not source code)
+livrables/

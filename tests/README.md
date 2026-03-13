@@ -10,7 +10,7 @@ tests/
 │   ├── test_config.py
 │   ├── test_model_registry.py
 │   └── test_contextual_popularity.py
-├── integration/       # Integration tests (placeholder)
+├── integration/       # Reserved for future end-to-end tests (currently empty)
 ├── fixtures/          # Test data and mock objects
 ├── conftest.py        # Pytest configuration and shared fixtures
 └── README.md          # This file
@@ -34,7 +34,7 @@ pytest --cov=src --cov-report=html
 - `tests/unit/test_contextual_popularity.py` — Cold-start popularity logic
 
 ### Integration Tests
-- `tests/integration/` is scaffolded for future integration tests
+- `tests/integration/` is reserved for future end-to-end tests against the live API. No integration tests are implemented at this stage — the MVP test scope covers unit-level logic only.
 
 ### Fixtures
 - `fixtures/sample_data.py` — Test datasets

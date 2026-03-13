@@ -1,27 +1,25 @@
 # Documentation
 
-Active documentation for the hybrid recommendation system.
+Active documentation for the OCP9 hybrid recommendation system.
 
-## Current Structure
+## Navigation
 
-```
-docs/
-├── README.md                  # This index
-├── api/
-│   └── README.md              # API contract and request examples
-├── architecture/
-│   └── README.md              # System architecture notes
-└── guides/
-    └── getting-started.md     # Quick integration guide
-```
+| Document | What it covers |
+|---|---|
+| [`CONTEXT.md`](../CONTEXT.md) | **Session handoff** — system summary, Azure deployment state, full data flow, known issues, next steps |
+| [`ALGORITHMS.md`](../ALGORITHMS.md) | **Algorithm story** — every algorithm tried, metrics, verdicts, production call sequences with LOOKUP/LIVE annotations |
+| [`docs/artifacts.md`](artifacts.md) | **Artifact reference** — for every deployed file: type (lookup table / live model / raw data), how it was computed, where it lives in Azure, role at inference time |
+| [`docs/architecture/README.md`](architecture/README.md) | **Architecture** — Azure resources, call sequences, known issues |
+| [`docs/api/README.md`](api/README.md) | **API reference** — endpoint, request/response schema, smoke tests |
+| [`docs/guides/getting-started.md`](guides/getting-started.md) | **Quick start** — curl examples, local Streamlit setup |
+| [`deployment/DEPLOYMENT.md`](../deployment/DEPLOYMENT.md) | **Deployment** — how to redeploy the Azure Function and Streamlit app |
 
-## Quick Links
+## Quick links
 
-- Getting started: `docs/guides/getting-started.md`
-- API reference: `docs/api/README.md`
-- Architecture notes: `docs/architecture/README.md`
+- Live endpoint: `POST https://ocp9funcapp-recsys.azurewebsites.net/api/reco`
+- Azure resource group: `ocp9` (Central US)
+- Tests: `uv run pytest tests/ -v`
 
 ## Scope
 
-- This docs folder only documents what is currently implemented.
-- Runtime-specific deployment details are documented in `deployment/DEPLOYMENT.md`.
+This docs folder documents the currently deployed system only. Stale or experimental content belongs in `secondary_assets/`, not here.
