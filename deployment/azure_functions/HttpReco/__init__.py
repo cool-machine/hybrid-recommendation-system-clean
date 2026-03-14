@@ -49,23 +49,25 @@ except Exception as e:
 # Ensure the file is copied into runtime artifacts before deployment.
 try:
     import pandas as pd
-    # Load ground truth and user profiles
-    _gt_df = pd.read_parquet(ART / "valid_clicks.parquet", columns=["user_id", "click_article_id", "click_deviceGroup", "click_os", "click_country"])
-    # keep only rows with a positive article_id (skip -1 or null)
     NUM_ITEMS = item_vec.shape[0]
-    _gt_df = _gt_df[_gt_df.click_article_id.notna() & (_gt_df.click_article_id >= 0) & (_gt_df.click_article_id < NUM_ITEMS)]
-    ground_truth = dict(zip(_gt_df.user_id.astype(int), _gt_df.click_article_id.astype(int)))
-    
-    # Build user profiles: get most recent device/OS/country for each user
+    _gt_df = pd.read_parquet(ART / "valid_clicks.parquet", columns=["user_id", "click_article_id", "click_deviceGroup", "click_os", "click_country"])
+
     user_profiles = {}
     for _, row in _gt_df.iterrows():
-        user_id = int(row["user_id"])
-        user_profiles[user_id] = {
+        uid = int(row["user_id"])
+        user_profiles[uid] = {
             "device": int(row["click_deviceGroup"]) if pd.notna(row["click_deviceGroup"]) else -1,
-            "os": int(row["click_os"]) if pd.notna(row["click_os"]) else -1,
-            "country": str(row["click_country"]).upper() if pd.notna(row["click_country"]) else ""
+            "os":     int(row["click_os"])          if pd.notna(row["click_os"])          else -1,
+            "country": str(row["click_country"]).upper() if pd.notna(row["click_country"]) else "",
         }
-    
+
+    _gt_valid = _gt_df[
+        _gt_df.click_article_id.notna()
+        & (_gt_df.click_article_id >= 0)
+        & (_gt_df.click_article_id < NUM_ITEMS)
+    ]
+    ground_truth = dict(zip(_gt_valid.user_id.astype(int), _gt_valid.click_article_id.astype(int)))
+
     logging.info("[Reco] Ground-truth table loaded (%d users)", len(ground_truth))
     logging.info("[Reco] User profiles loaded (%d users)", len(user_profiles))
     if ground_truth:
@@ -134,51 +136,12 @@ def build_features(u: int, cand: list[int]) -> np.ndarray:
 
 
 def _cold_reco(env: dict[str, object], k: int = 10) -> list[int]:
-    """Blend popularity lists for a cold user.
+    """Return top-k from global popularity for cold users.
 
-    Allocation (for k=10):
-        2  – global by same OS
-        2  – global by same device group
-        3  – regional by OS (os+country)
-        3  – regional by device (dev+country)
-    If some buckets are missing/short, fill with global_top.
+    Uses pop_list.npy which was built from TRAIN data in the notebooks,
+    ensuring no data leakage when evaluating on validation/test users.
     """
-    dev  = int(env.get("device", -1))
-    os_  = int(env.get("os", -1))
-    ctry = str(env.get("country", "")).upper()
-
-    res: list[int] = []
-    seen: set[int] = set()
-
-    def extend(arr: list[int]|np.ndarray|None, n: int):
-        if arr is None:
-            return 0
-        added = 0
-        for it in arr:
-            it = int(it)
-            if it not in seen:
-                seen.add(it); res.append(it); added += 1
-                if added == n or len(res) == k:
-                    break
-        return added
-
-    need = {
-        "os_g": max(1, k * 2 // 10),
-        "dev_g": max(1, k * 2 // 10),
-        "os_reg": max(1, k * 3 // 10),
-        "dev_reg": k - (k * 2 // 10) * 2 - (k * 3 // 10),
-    }
-
-    extend(TOP.get("by_os", {}).get(os_), need["os_g"])
-    extend(TOP.get("by_dev", {}).get(dev), need["dev_g"])
-    extend(TOP.get("by_os_reg", {}).get((os_, ctry)), need["os_reg"])
-    extend(TOP.get("by_dev_reg", {}).get((dev, ctry)), need["dev_reg"])
-
-    # fill any remaining with global list
-    if len(res) < k:
-        extend(TOP.get("global_top", pop_list), k - len(res))
-
-    return res[:k]
+    return [int(x) for x in pop_list[:k]]
 
 
 @app.route(route="reco", methods=["POST"])
@@ -213,7 +176,8 @@ def http_reco(req: func.HttpRequest) -> func.HttpResponse:  # noqa: N802 – Azu
     if "country" in env_override:
         env["country"] = str(env_override["country"]).upper()
 
-    is_cold = last_click[user_id] == -1
+    force_cold = bool(body.get("force_cold", False))
+    is_cold = force_cold or last_click[user_id] == -1
 
     if is_cold:
         topk_ids = _cold_reco(env, k)

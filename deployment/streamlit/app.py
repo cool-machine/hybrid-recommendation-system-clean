@@ -81,23 +81,23 @@ except Exception:
 if not GT_USERS:
     GT_USERS = list(range(100))  # first 100 user IDs as generic warm users
 
-# cold users (no history)
-COLD_USERS: list[int]
-try:
-    cold_path = ART_DIR / "cold_users.npy"
-    COLD_USERS = np.load(cold_path).astype(int).tolist() if cold_path.exists() else []
-except Exception:
-    COLD_USERS = []
-# fallback demo pool
-if not COLD_USERS:
-    COLD_USERS = list(range(1000, 1100))
+# Cold-start demo: real users whose context (OS/device/country) is used to
+# predict what they would click before any interaction history.
+# Selected from validation set — 8 expected hits, 4 expected misses.
+# Ground-truth evaluated against pop_list.npy (built from TRAIN data).
+COLD_USERS: list[int] = [
+    571, 701, 1541, 4010, 5784, 9060, 11125, 17413,  # expected hits
+    2052, 3305, 17610, 20538,                         # expected misses
+]
 
 if "sample_users" not in st.session_state:
     st.session_state.sample_users = random.sample(GT_USERS, min(RAND_COUNT, len(GT_USERS))) if GT_USERS else []
 if "sample_cold" not in st.session_state:
-    st.session_state.sample_cold = random.sample(COLD_USERS, min(RAND_COUNT, len(COLD_USERS))) if COLD_USERS else []
+    st.session_state.sample_cold = COLD_USERS[:]
 if "selected_uid" not in st.session_state:
     st.session_state.selected_uid = 0
+if "force_cold" not in st.session_state:
+    st.session_state.force_cold = False
 if "manual_uid" not in st.session_state:
     st.session_state.manual_uid = int(st.session_state.selected_uid)
 
@@ -112,12 +112,13 @@ for i, uid in enumerate(st.session_state.sample_users[:RAND_COUNT]):
     if col.button(str(uid), key=f"warm_{uid}"):
         st.session_state.selected_uid = uid
         st.session_state.manual_uid = uid
+        st.session_state.force_cold = False
 
 # close warm wrapper
 st.markdown("</div>", unsafe_allow_html=True)
 # --- cold user bubbles -------------------------------------------------------
 st.markdown("<div class='cold'>", unsafe_allow_html=True)
-st.markdown("### 🔴 Cold users (no history)")
+st.markdown("### 🔴 Cold-start demo (context-only prediction)")
 for i, uid in enumerate(st.session_state.sample_cold[:RAND_COUNT]):
     if i % NUM_COLS == 0:
         cols = st.columns(NUM_COLS)
@@ -125,6 +126,7 @@ for i, uid in enumerate(st.session_state.sample_cold[:RAND_COUNT]):
     if col.button(f"⭕️ {uid}", key=f"cold_{uid}"):
         st.session_state.selected_uid = uid
         st.session_state.manual_uid = uid
+        st.session_state.force_cold = True
 
 st.markdown("### Or enter a user ID")
 # close cold wrapper
@@ -136,19 +138,15 @@ selected_uid = int(manual_id)
 
 k = st.selectbox("How many recommendations?", [5, 10, 20], index=1)
 
-# --- contextual fields for cold-start ---------------------------------------
-with st.expander("Context (for cold users)"):
-    device_group = st.selectbox("Device group", {"mobile":0,"desktop":1,"tablet":2}, index=1, key="dev_grp")
-    os_id        = st.selectbox("OS", {"Android":0,"iOS":1,"Windows":2,"macOS":3,"Linux":4,"Other":5}, index=3, key="os_id")
-    country      = st.text_input("Country code (ISO 2)", "US", max_chars=2)
-
 if st.button("🔍 Get recommendations"):
     if not API_URL:
         st.error("API URL not configured.")
     else:
         with st.spinner("Calling backend …"):
             try:
-                payload = {"user_id": selected_uid, "k": k, "env": {"device": device_group, "os": os_id, "country": country.upper()}}
+                payload: dict = {"user_id": selected_uid, "k": k}
+                if st.session_state.force_cold:
+                    payload["force_cold"] = True
                 resp = requests.post(API_URL, json=payload, timeout=30)
                 resp.raise_for_status()
                 data = resp.json()
@@ -156,10 +154,26 @@ if st.button("🔍 Get recommendations"):
                 st.error(f"Request failed: {e}")
             else:
                 st.success("Recommendations received!")
-                user_type = "First-time user" if selected_uid in COLD_USERS else "Returning user"
+                is_cold_demo = st.session_state.force_cold
+                user_type = "Cold-start (context only)" if is_cold_demo else "Warm (hybrid model)"
                 st.write(f"**User:** {selected_uid}  ·  *{user_type}*")
-                if data.get('ground_truth') is not None:
-                    st.write(f"**Ground-truth click:** {data.get('ground_truth')}")
+
+                profile = data.get("user_profile", {}).get("used", {})
+                if profile:
+                    st.caption(f"Context used → OS: {profile.get('os')}, "
+                               f"Device: {profile.get('device')}, "
+                               f"Country: {profile.get('country')}")
+
+                gt = data.get("ground_truth")
+                recs = data.get("recommendations", [])
+                if gt is not None:
+                    hit = gt in recs
+                    pos = recs.index(gt) + 1 if hit else None
+                    if hit:
+                        st.write(f"**Ground-truth click:** {gt}  ✅ found at position {pos}/{len(recs)}")
+                    else:
+                        st.write(f"**Ground-truth click:** {gt}  ❌ not in top-{len(recs)}")
                 st.markdown("#### Top items")
-                for rank, item in enumerate(data.get("recommendations", []), start=1):
-                    st.write(f"{rank}. Article {item}")
+                for rank, item in enumerate(recs, start=1):
+                    marker = " ⬅️" if gt is not None and item == gt else ""
+                    st.write(f"{rank}. Article {item}{marker}")
