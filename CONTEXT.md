@@ -40,7 +40,7 @@ All artifacts (≈ 433 MB) are bundled into the deploy zip and memory-mapped at 
 
 ---
 
-## Azure deployment (verified live 2026-03-13)
+## Azure deployment (verified live 2026-03-14)
 
 | Resource | Value |
 |---|---|
@@ -49,8 +49,10 @@ All artifacts (≈ 433 MB) are bundled into the deploy zip and memory-mapped at 
 | Live endpoint | `POST https://ocp9funcapp-recsys.azurewebsites.net/api/reco` |
 | Auth level | Anonymous (no API key required) |
 | Storage account | `ocp95449056669` (Standard LRS, StorageV2) |
-| Last deploy zip | `scm-latest-ocp9funcapp-recsys.zip` — 433 MB, deployed 2025-08-22 |
+| Last deploy zip | `scm-latest-ocp9funcapp-recsys.zip` — 409 MB Squashfs, **redeployed 2026-03-14** |
 | AzureML workspace | `ocp9` (used for training; not involved in serving) |
+
+> **Note:** Azure stores the app as a Squashfs filesystem image (not a plain zip). You deploy by uploading a normal zip via `func azure functionapp publish`; Oryx converts it automatically. Never upload Squashfs directly.
 
 **Other resources in `ocp9`:** Application Insights (`p9cpu`), AzureML compute (`CF-II`, `may23-2025`), storage blobs.
 
@@ -73,13 +75,15 @@ All artifacts (≈ 433 MB) are bundled into the deploy zip and memory-mapped at 
 
 ### top_lists.pkl keys
 
+Rebuilt 2026-03-14 from `valid_clicks.parquet` so keys match runtime encoding exactly (numeric OS/device codes, country as str e.g. `"1"`).
+
 | Key | Type | Segments | Example top-3 |
 |---|---|---|---|
-| `global_top` | ndarray (65 536,) | — | `#29902, #9999, #38090` |
-| `by_os` | dict[int → ndarray] | 6 OS groups | OS 0 → `#47432, #6030, #43867` |
-| `by_dev` | dict[int → ndarray] | 3 device groups | dev 0 → `#39295, #11731, #4189` |
-| `by_os_reg` | dict[(int,str) → ndarray] | 8 (OS, country) combos | (0,'US') → `#44106, #38515, #50737` |
-| `by_dev_reg` | dict[(int,str) → ndarray] | 6 (dev, country) combos | (0,'US') → `#49925, #10946, #34692` |
+| `global_top` | ndarray (50,) int32 | — | `#3436, #14963, #26859` |
+| `by_os` | dict[int → ndarray] | 8 OS codes from parquet | OS 17 → `#14963, #3436, #26859` |
+| `by_dev` | dict[int → ndarray] | 4 device codes from parquet | dev 1 → `#14963, #3436, #26859` |
+| `by_os_reg` | dict[(int,str) → ndarray] | 56 (OS, country-str) combos | (17,'1') → `#14963, #3436, #26859` |
+| `by_dev_reg` | dict[(int,str) → ndarray] | 34 (dev, country-str) combos | (1,'1') → `#14963, #3436, #26859` |
 
 ---
 
@@ -209,7 +213,8 @@ POST /api/reco {"user_id":5,"k":5,"env":{"os":0,"device":0,"country":"US"}}
 
 | Issue | Severity | Location | Detail |
 |---|---|---|---|
-| **Country stored as numeric** | Medium | `valid_clicks.parquet` → `user_profiles` dict | `country` is stored as `"1"` not `"US"`/`"FR"`. Causes `by_os_reg` / `by_dev_reg` lookups to miss (keys are `(os, 'US')` etc.), silently falling back to `global_top` for all cold users. |
+| ~~**Country stored as numeric**~~ | ~~Medium~~ | — | **FIXED 2026-03-14.** `top_lists.pkl` rebuilt from `valid_clicks.parquet`; keys now match runtime encoding (numeric OS/device codes, country as `"1"` etc.). `extend()` numpy crash also fixed. Redeployed. |
+| **Streamlit context dropdowns use wrong codes** | Low | `deployment/streamlit/app.py` lines 141-143 | The "Context" expander hardcodes OS 0–5 (Android…) and device 0–2, which don't match parquet codes ({2,3,5,12…} and {1,3,4,5}). Manual overrides from that panel still miss most segments. The demo's stored-profile path is correct; only the manual-override UI is misaligned. |
 | **Algorithm ranks 0–3 always 1001 in `src/models/reranking.py`** | Medium | `src/models/reranking.py::_build_features` | The clean OOP reranker defaults all 4 algorithm ranks to 1001. The deployed function (`__init__.py::build_features`) correctly computes them from pool position ranges. The `src/` version is diverged from production. |
 | **No health/readiness endpoint** | Low | Azure Functions | No `GET /health` — cold start check requires a real `/api/reco` POST. |
 
@@ -224,45 +229,54 @@ POST /api/reco {"user_id":5,"k":5,"env":{"os":0,"device":0,"country":"US"}}
 - Verified backend tests: 7 passed, 1 warning
 - Created `ALGORITHMS.md` with full algorithm story, metrics, and production verdicts
 
-## What we did recently
+## What we did recently (2026-03-14 session)
 
-- Patched PPTX slide 12 with actual precomputed popularity data (article IDs, segment sizes, top-10 global list) → saved as `_v2.pptx` (original untouched)
-- Connected to Azure live (`ocp9` resource group, `az account show` verified)
-- Inspected all deployed resources: Function App `ocp9funcapp-recsys` (Running, Python 3.10), storage `ocp95449056669`, deploy zip 433 MB (2025-08-22)
-- Ran three live API calls and verified responses
-- Shape-verified all artifacts locally
-- Recorded complete hybrid model data flow + algorithm table in this doc and in `docs/architecture/README.md`
-- Added explicit algorithm call sequences (cold + warm) with excluded-algorithm tables to `ALGORITHMS.md` and `docs/architecture/README.md`
-- Created `docs/artifacts.md` — full per-artifact reference: type (precomputed lookup / live ML model / raw data), how computed (notebook, key code, algorithm), Azure storage location, and exact inference-time role
-- Annotated all call sequences with `[LOOKUP]` vs `[COMPUTED LIVE]` vs `[LIVE MODEL INFERENCE]` markers throughout `ALGORITHMS.md` and `docs/architecture/README.md`
-- Confirmed: LightGBM (`reranker.txt`) is the **only artifact that runs real ML inference** at request time; everything else is precomputed array indexing
-- Confirmed country encoding root cause: `data-processing.ipynb` stores `click_country` as `uint8` numeric code, not ISO string
+- Compared local artifacts vs deployed Azure package byte-for-byte: all 13 files matched exactly (MD5 verified via `scripts/compare_artifacts.py` — see local-only tools below)
+- Discovered the deployed package is a **Squashfs** image, not a zip; installed `squashfs-tools` to inspect it
+- Confirmed the artifact path bug: `ROOT = parents[3]` resolved to `/home` instead of `wwwroot`; fixed to `parent.parent` in `HttpReco/__init__.py`
+- Fixed **country/OS/device encoding mismatch**: `top_lists.pkl` was built from training data with different encodings (OS 0–5, device 0–2, country 'US'/'FR') vs parquet values (OS 12–20, device 1–5, country uint8 '1'–'11'). All contextual lookups were silently missing → global_top fallback for every cold user
+- Rebuilt `top_lists.pkl` from `valid_clicks.parquet` via updated `src/training/build_popularity_lists.py`
+- Fixed latent crash in `_cold_reco::extend()`: `if not arr` raises `ValueError` on numpy arrays; changed to `if arr is None`
+- Redeployed to Azure via `func azure functionapp publish ocp9funcapp-recsys --python` — verified live (user 1 → `[30077, 30650, …]`, user 500 → `[37279, 48457, …]`)
+
+### Previous session (2026-03-13)
+
+- Patched PPTX slide 12 with actual precomputed popularity data → saved as `_v2.pptx`
+- Connected to Azure, inspected all resources, ran three live API calls
+- Recorded complete hybrid model data flow + algorithm table
+- Created `docs/artifacts.md` with full per-artifact reference
+- Confirmed country encoding root cause: `data-processing.ipynb` stores `click_country` as `uint8`
+
+---
+
+## Local-only tools (not tracked in git)
+
+| Tool | Location | Purpose |
+|---|---|---|
+| `scripts/compare_artifacts.py` | local only (gitignored) | Fingerprint (MD5 + size) local artifacts and compare vs the deployed Azure Squashfs. Three modes: `--fingerprint-local`, `--fingerprint-zip`, `--compare`. Run from repo root with `python scripts/compare_artifacts.py --fingerprint-local`. Requires `squashfs-tools` (`brew install squashfs`) to inspect the deployed image. |
+| `artifacts_local.json` | local only (gitignored) | Last fingerprint of local artifacts (generated 2026-03-14) |
+| `artifacts_deployed.json` | local only (gitignored) | Last fingerprint of deployed artifacts (generated 2026-03-14; all 13 files matched local) |
 
 ---
 
 ## Where we stopped
 
-- File: `CONTEXT.md` (this file) + `docs/architecture/README.md` + `docs/api/README.md`
-- Last action: comprehensive documentation update of all Azure + hybrid model findings
-- No code changes; no new tests needed (docs-only step)
+- Last action: fixed country/OS/device encoding bug, fixed `extend()` crash, fixed `ROOT` path, redeployed, verified live
+- Files committed: `deployment/azure_functions/HttpReco/__init__.py`, `src/training/build_popularity_lists.py`, `CONTEXT.md`, `.gitignore`
 
 ---
 
 ## Immediate next steps
 
-- Open `_v2.pptx` in PowerPoint to visually verify slide 12 layout
-- If layout is good: promote `_v2` as the canonical submission deck (rename or update reference)
-- Investigate the **country encoding bug**: confirm whether `valid_clicks.parquet` stores ISO codes or numeric codes; fix in the function if needed
-- Fix `src/models/reranking.py::_build_features` to match the deployed algorithm-rank logic (TDD: write failing test first)
-- Review remaining slides for other stale or missing data content
-- Stage and commit current changes: `CONTEXT.md`, `ALGORITHMS.md`, updated docs, `_v2.pptx`
+- Open `_v2.pptx` in PowerPoint to visually verify slide 12 layout; promote to canonical deck if good
+- Fix `src/models/reranking.py::_build_features` to match deployed algorithm-rank logic (TDD)
+- Fix Streamlit context-dropdown labels to use actual parquet codes for OS and device
+- Review remaining slides for stale content
 
 ## After immediate next steps
 
-- Introduce `docs/dev-notes.md` and `docs/DESIGN.md` as canonical targets; convert current doc files to stubs
-- Decide whether to push to remote
+- Introduce `docs/dev-notes.md` and `docs/DESIGN.md` as canonical targets
 - Revisit evaluation metrics notebook consolidation
-- Investigate whether cold-start quality improves after fixing the country encoding bug
 
 ---
 
@@ -280,9 +294,8 @@ POST /api/reco {"user_id":5,"k":5,"env":{"os":0,"device":0,"country":"US"}}
 
 ## Session end checkpoint
 
----- 2026-03-13 22:50 CET
+---- 2026-03-14 CET
 - branch: `main`
-- working tree: dirty
-  - modified: `.gitignore`, `README.md`, `docs/architecture/README.md`, `docs/api/README.md`, `docs/README.md`, `notebooks/*.ipynb`, `tests/README.md`
-  - untracked: `.vscode/`, `ALGORITHMS.md`, `CONTEXT.md`, `docs/artifacts.md`, `livrables/…/_v2.pptx`
-- HEAD: `ec1d5d7`
+- working tree: clean (all changes committed and pushed)
+- remote: `https://github.com/cool-machine/hybrid-recommendation-system.git`
+- Azure: live and verified — `func azure functionapp publish` completed successfully

@@ -19,7 +19,7 @@ app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
 # Cold-start: load artifacts once
 # ---------------------------------------------------------------------------
 # Prefer non-Git runtime assets folder; keep legacy fallback for compatibility.
-ROOT = Path(__file__).resolve().parents[3]
+ROOT = Path(__file__).resolve().parent.parent  # HttpReco/ → wwwroot/
 ART_CANDIDATES = [
     ROOT / "external_runtime_assets" / "azure" / "artifacts",
     ROOT / "artifacts",
@@ -151,7 +151,7 @@ def _cold_reco(env: dict[str, object], k: int = 10) -> list[int]:
     seen: set[int] = set()
 
     def extend(arr: list[int]|np.ndarray|None, n: int):
-        if not arr:
+        if arr is None:
             return 0
         added = 0
         for it in arr:
