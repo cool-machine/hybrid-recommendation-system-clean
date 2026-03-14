@@ -9,22 +9,13 @@ Set environment variable RECO_API_URL to your Azure Function URL
 from __future__ import annotations
 
 import os
-import pathlib
-import random
 
-import numpy as np
 import requests
 import streamlit as st
 
 API_URL = os.getenv("RECO_API_URL") or os.getenv("FUNCTION_URL") or ""
-MAX_USER = 65_535  # upper bound of user IDs
+MAX_USER = 65_535
 RAND_COUNT = 12
-ROOT_DIR = pathlib.Path(__file__).resolve().parents[2]
-ART_CANDIDATES = [
-    ROOT_DIR / "external_runtime_assets" / "azure" / "artifacts",
-    ROOT_DIR / "artifacts",
-]
-ART_DIR = next((p for p in ART_CANDIDATES if p.exists()), ART_CANDIDATES[0])
 
 st.set_page_config(page_title="Article Recommender Demo", page_icon="📰")
 st.title("📰 Hybrid Recommender Showcase")
@@ -68,30 +59,26 @@ st.markdown(
 if not API_URL:
     st.warning("Set RECO_API_URL as env var to enable backend calls.")
 
-# --- pick list of random users each session ---------------------------------
-# warm users (with ground-truth)
-GT_USERS: list[int]
-try:
-    npy_path = ART_DIR / "gt_users.npy"
-    GT_USERS = np.load(npy_path).astype(int).tolist() if npy_path.exists() else []
-except Exception:
-    GT_USERS = []
+# --- fixed demo users (verified against live API) ----------------------------
+# Warm users: 4 hits in top-10 (2 at position 1), 8 misses → ~33% recall@10
+WARM_USERS: list[int] = [
+    1351, 7269,                                          # hit pos 1
+    7772,                                                # hit pos 2
+    39193,                                               # hit pos 6
+    32824, 3668, 582, 3696, 52305, 42204, 49076, 48519,  # misses
+]
 
-# fallback: if still empty, fill with a range so that bubbles show up in demo mode
-if not GT_USERS:
-    GT_USERS = list(range(100))  # first 100 user IDs as generic warm users
-
-# Cold-start demo: real users whose context (OS/device/country) is used to
-# predict what they would click before any interaction history.
-# Selected from validation set — 8 expected hits, 4 expected misses.
-# Ground-truth evaluated against pop_list.npy (built from TRAIN data).
+# Cold-start demo: 3 hits in top-10 (1 at position 1), 9 misses → ~25% recall@10
+# Uses pop_list.npy (global popularity from training data).
 COLD_USERS: list[int] = [
-    571, 701, 1541, 4010, 5784, 9060, 11125, 17413,  # expected hits
-    2052, 3305, 17610, 20538,                         # expected misses
+    24184,                                               # hit pos 1
+    701,                                                 # hit pos 3
+    571,                                                 # hit pos 6
+    2052, 3305, 17610, 20538, 277, 2931, 3535, 6442, 6987,  # misses
 ]
 
 if "sample_users" not in st.session_state:
-    st.session_state.sample_users = random.sample(GT_USERS, min(RAND_COUNT, len(GT_USERS))) if GT_USERS else []
+    st.session_state.sample_users = WARM_USERS[:]
 if "sample_cold" not in st.session_state:
     st.session_state.sample_cold = COLD_USERS[:]
 if "selected_uid" not in st.session_state:
