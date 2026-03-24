@@ -134,6 +134,3 @@ artifacts_deployed.json
 
 # Deployment staging folder (artifact copies for packaging; not source code)
 deployment/azure_functions/artifacts/
-
-# Submission package (large binaries, not source code)
-livrables/

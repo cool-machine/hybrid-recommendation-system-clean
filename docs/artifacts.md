@@ -55,7 +55,7 @@ where `ROOT` is the grandparent of the function's `__init__.py`.
 | **Source data** | `train_clicks.parquet` |
 | **How computed** | Group training interactions by `user_id`, take the row with the **maximum `click_timestamp`**, store its `click_article_id`. |
 | **Key code** | `idx = train_df.groupby("user_id").click_timestamp.idxmax()` → `last_click[train_df.user_id[idx]] = train_df.click_article_id[idx]` |
-| **Notebook** | `5.hybrid-rec.ipynb` · cell 56 |
+| **Notebook** | `notebooks/hybrid-ensemble-recommendation.ipynb` · cell 56 |
 | **Role at inference** | Looked up once to decide cold vs warm path, and to find the seed article for I2I CF candidates. No computation. |
 
 ---
@@ -70,7 +70,7 @@ where `ROOT` is the grandparent of the function's `__init__.py`.
 | **Source data** | `train_clicks.parquet` |
 | **How computed** | 1. Build a **user × item incidence matrix** (CSR) from all training clicks. 2. L2-normalise each item's column vector (item = a column = "which users clicked it"). 3. Compute the full **item × item cosine similarity matrix** (`item_matrix @ item_matrix.T`). 4. For each of the 65 536 articles, keep the top-300 most similar neighbours, **excluding the article itself**. |
 | **Key code** | `norm = ui.T.copy()` → L2-normalise → `sim = (norm @ norm.T)` → `top300 = argpartition(-sim, 301)[:, 1:301]` |
-| **Notebook** | `5.hybrid-rec.ipynb` · cell 56 |
+| **Notebook** | `notebooks/hybrid-ensemble-recommendation.ipynb` · cell 56 |
 | **Role at inference** | For a warm user: `cf_i2i_top300[last_click[user_id]]` → direct array lookup → first 300 candidates. No algorithm runs. |
 
 ---
@@ -85,7 +85,7 @@ where `ROOT` is the grandparent of the function's `__init__.py`.
 | **Source data** | `train_clicks.parquet` |
 | **How computed** | 1. Build user × item CSR matrix. 2. Train **ALS** (`implicit` library) with confidence weighting `C = 1 + 40 × R` (alpha=40), `factors=64`, `iterations=20`, `regularization=1e-4`. 3. After training, compute the full **score matrix** = `user_factors @ item_factors.T` (65 536 × 65 536). 4. For each user, keep the **top-100 highest-scoring items** via `argpartition`. |
 | **Key code** | `als.fit((40 * ui.T).tocsr())` → `als_scores = als.item_factors @ als.user_factors.T` → `als_top100 = argpartition(-als_scores, 100, axis=1)[:, :100]` |
-| **Notebook** | `5.hybrid-rec.ipynb` · cell 56 |
+| **Notebook** | `notebooks/hybrid-ensemble-recommendation.ipynb` · cell 56 |
 | **Role at inference** | `als_top100[user_id]` → direct array lookup → next up to 100 candidates added to pool. No algorithm runs. |
 
 ---
@@ -100,7 +100,7 @@ where `ROOT` is the grandparent of the function's `__init__.py`.
 | **Source data** | `train_clicks.parquet` + `articles_embeddings.pickle` (pre-trained article embeddings) |
 | **How computed** | 1. Train the Two-Tower neural network (see `final_twotower_*_vec.npy` below). 2. Extract final user and item embedding vectors for all users and items. 3. Compute the full **score matrix** = `user_vec @ item_vec.T`. 4. For each user, keep the **top-200 highest-scoring items** via `argpartition`. |
 | **Key code** | `tt_scores = tt_user_vec @ tt_item_vec.T` → `tt_top200 = argpartition(-tt_scores, 200, axis=1)[:, :200]` |
-| **Notebook** | `5.hybrid-rec.ipynb` · cell 56 |
+| **Notebook** | `notebooks/hybrid-ensemble-recommendation.ipynb` · cell 56 |
 | **Role at inference** | `tt_top200[user_id]` → direct array lookup → next up to 200 candidates. No algorithm runs. |
 
 ---
@@ -114,7 +114,7 @@ where `ROOT` is the grandparent of the function's `__init__.py`.
 | **Meaning** | All article IDs sorted by **descending total click count** in the training set. `pop_list[0]` is the most-clicked article (#29902). |
 | **Source data** | `train_clicks.parquet` |
 | **How computed** | `np.argsort(np.bincount(train_df.click_article_id, minlength=n_items))[::-1]` — count clicks per article, sort descending. |
-| **Notebook** | `5.hybrid-rec.ipynb` · cell 56 |
+| **Notebook** | `notebooks/hybrid-ensemble-recommendation.ipynb` · cell 56 |
 | **Role at inference** | Iterated in rank order to fill candidate pool slots (positions 401–600 and 801–1000). Also the fallback for `global_top` in cold-path if `top_lists.pkl` fails to load. Pure iteration, no computation. |
 
 ---
@@ -141,7 +141,7 @@ where `ROOT` is the grandparent of the function's `__init__.py`.
 
 > ⚠️ **Known issue:** `click_country` was stored as a `uint8` numeric code (0–255) in `data-processing.ipynb`. The keys in `by_os_reg` and `by_dev_reg` expect ISO country strings (`'US'`, `'FR'`). Stored user profiles carry the numeric code (e.g. `"1"`), causing contextual lookups to **miss silently** and fall back to `global_top`. Fix: add a numeric→ISO mapping when building user profiles.
 
-| **Notebook** | `5.hybrid-rec.ipynb` (contextual popularity segment) — exact cell not in downloaded v2 notebooks; likely built in the popularity notebook series or a standalone script before deployment. |
+| **Notebook** | `notebooks/hybrid-ensemble-recommendation.ipynb` (contextual popularity segment) — exact cell not in downloaded v2 notebooks; likely built in the popularity notebook series or a standalone script before deployment. |
 | **Role at inference** | Cold path only. `TOP["by_os"][os_id]` etc. → direct dict lookup → returns pre-ranked article array. No computation. |
 
 ---
@@ -155,7 +155,7 @@ where `ROOT` is the grandparent of the function's `__init__.py`.
 | **Meaning** | L2-normalised 250-dimensional embedding vector for every user, output of the trained Two-Tower user tower. |
 | **Source data** | `train_clicks.parquet` |
 | **How computed** | See Two-Tower training below. After training: `user_vec = model.user_vec(torch.arange(n_users)).detach().cpu().numpy()` → `np.save("final_twotower_user_vec.npy", user_vec)` |
-| **Notebook** | `5.hybrid-rec.ipynb` · cell 54 |
+| **Notebook** | `notebooks/hybrid-ensemble-recommendation.ipynb` · cell 54 |
 | **Role at inference** | **Used in a live computation** at every warm-user request: `dot(user_vec[u], item_vec[i]) / (‖u‖ · ‖i‖ + ε)` is computed for all ~1000 candidates to produce feature f5 for LightGBM. This is a real NumPy matrix operation happening per-request. |
 
 ---
@@ -169,7 +169,7 @@ where `ROOT` is the grandparent of the function's `__init__.py`.
 | **Meaning** | L2-normalised 250-dimensional embedding vector for every article, output of the trained Two-Tower item tower. |
 | **Source data** | `articles_embeddings.pickle` (pre-trained article content embeddings from the dataset) |
 | **How computed** | See Two-Tower training below. After training: `item_vec = model.item_vec(torch.arange(n_items)).detach().cpu().numpy()` → `np.save("final_twotower_item_vec.npy", item_vec)` |
-| **Notebook** | `5.hybrid-rec.ipynb` · cell 54 |
+| **Notebook** | `notebooks/hybrid-ensemble-recommendation.ipynb` · cell 54 |
 | **Role at inference** | Same as `user_vec` above — used per-request in the cosine similarity computation for LightGBM feature f5. |
 
 #### Two-Tower training (how both embedding files were produced)
@@ -183,7 +183,7 @@ The Two-Tower is a **dual-encoder neural network** trained with **Bayesian Perso
 - **Framework:** PyTorch + PyTorch Lightning, `pl.seed_everything(42)`
 - **Output:** 250-dim L2-normalised vectors for all 65 536 users and all 65 536 articles
 - **Saved to:** `cached_artifacts/final_twotower_user_vec.npy` and `final_twotower_item_vec.npy`
-- **Notebook:** `5.hybrid-rec.ipynb` · cell 54
+- **Notebook:** `notebooks/hybrid-ensemble-recommendation.ipynb` · cell 54
 
 ---
 
@@ -198,7 +198,7 @@ The Two-Tower is a **dual-encoder neural network** trained with **Bayesian Perso
 | **How computed** | 1. For every warm user (those with `last_click != -1`), build the same 1000-candidate pool that inference will use. 2. Construct the 6-feature matrix (same as inference). 3. Label each (user, candidate) pair: `label = 1` if candidate == ground-truth next click, else `0`. 4. Train LightGBM with `lambdarank` objective (pairwise ranking loss), optimising `ndcg@[10, 100]`. 5. 80/20 user split for train/validation; `early_stopping_round=50`. |
 | **Hyperparameters** | `objective="lambdarank"`, `metric="ndcg"`, `ndcg_eval_at=[10,100]`, `learning_rate=0.05`, `num_leaves=255`, `min_data_in_leaf=20`, `feature_fraction=0.8`, `early_stopping_round=50` |
 | **Key code** | `model = lgb.train(params, dtrain, valid_sets=[dval])` → `model.save_model("reranker.txt")` |
-| **Notebook** | `5.hybrid-rec.ipynb` · cell 60 |
+| **Notebook** | `notebooks/hybrid-ensemble-recommendation.ipynb` · cell 60 |
 | **Role at inference** | `model.predict(X_1000x6)` → 1000 float scores → `argsort(-scores)[:k]` → top-k article IDs returned to caller. **Real model inference happens here.** |
 
 ---
@@ -208,8 +208,8 @@ The Two-Tower is a **dual-encoder neural network** trained with **Bayesian Perso
 | Field | Value |
 |---|---|
 | **Type** | Raw data file (not a model or derived artifact) |
-| **Meaning** | The held-out validation click dataset from the OpenClassrooms dataset. One row per user. Used at inference time for two purposes: (1) the `ground_truth` field in the response (for demo/evaluation display), and (2) stored user profiles (device, OS, country). |
-| **Source data** | Original OCP9 dataset (provided by OpenClassrooms) |
+| **Meaning** | The held-out validation click dataset from the original recommendation corpus. One row per user. Used at inference time for two purposes: (1) the `ground_truth` field in the response (for demo/evaluation display), and (2) stored user profiles (device, OS, country). |
+| **Source data** | Original recommendation dataset |
 | **How computed** | Not computed — this is the raw validation split of the dataset. It was the held-out set used during model evaluation. |
 | **Columns used at inference** | `user_id`, `click_article_id` (ground truth), `click_deviceGroup`, `click_os`, `click_country` |
 | **Role at inference** | Loaded at cold start. Provides `ground_truth` for display and populates `user_profiles` dict. No computation on it per request. |
@@ -284,8 +284,8 @@ Raw dataset
 
 | Notebook | Cell | Artifacts produced |
 |---|---|---|
-| `5.hybrid-rec.ipynb` | 54 | `final_twotower_user_vec.npy`, `final_twotower_item_vec.npy` |
-| `5.hybrid-rec.ipynb` | 56 | `last_click.npy`, `cf_i2i_top300.npy`, `als_top100.npy`, `tt_top200.npy`, `pop_list.npy` |
-| `5.hybrid-rec.ipynb` | 60 | `reranker.txt` |
+| `notebooks/hybrid-ensemble-recommendation.ipynb` | 54 | `final_twotower_user_vec.npy`, `final_twotower_item_vec.npy` |
+| `notebooks/hybrid-ensemble-recommendation.ipynb` | 56 | `last_click.npy`, `cf_i2i_top300.npy`, `als_top100.npy`, `tt_top200.npy`, `pop_list.npy` |
+| `notebooks/hybrid-ensemble-recommendation.ipynb` | 60 | `reranker.txt` |
 | Popularity notebook / manual | — | `top_lists.pkl` (exact build cell not in downloaded notebooks) |
 | Raw dataset split | — | `valid_clicks.parquet` (provided, not generated) |

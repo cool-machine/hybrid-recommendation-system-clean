@@ -1,4 +1,4 @@
-# Algorithm Story — OCP9 Hybrid Recommender
+# Algorithm Story — Hybrid Recommendation System
 
 > This document traces every algorithm tried, why it was kept or discarded as a standalone ranker, and what role it plays in the final production pipeline.
 > For the architecture and artifact details see [`docs/architecture/README.md`](docs/architecture/README.md).

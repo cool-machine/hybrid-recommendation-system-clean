@@ -1,4 +1,4 @@
-# CONTEXT — OCP9 Hybrid Recommender
+# CONTEXT — Hybrid Recommendation System
 
 > Single source of truth for session handoff. Update after every completed step and before ending any session.
 
@@ -6,7 +6,7 @@
 
 ## System summary
 
-OpenClassrooms project P9: a production hybrid news recommendation system. A **Streamlit Cloud** frontend calls a **single Azure Functions endpoint** (`POST /api/reco`) that routes each user to one of two paths:
+Production hybrid news recommendation system. A **Streamlit Cloud** frontend calls a **single Azure Functions endpoint** (`POST /api/reco`) that routes each user to one of two paths:
 
 - **Cold path** (no click history): context-aware popularity blend drawn from precomputed `top_lists.pkl`
 - **Warm path** (has history): 4-source candidate assembly (CF + ALS + Popularity + Two-Tower) → LightGBM reranker
@@ -36,7 +36,6 @@ All artifacts (≈ 433 MB) are bundled into the deploy zip and memory-mapped at 
 | `ALGORITHMS.md` | Full algorithm story: results, verdicts, design rationale |
 | `secondary_assets/external_runtime_assets/azure/artifacts/` | Local copy of all deployed artifacts (gitignored) |
 | `secondary_assets/azure_ml_notebooks/` | Downloaded AzureML notebooks + metrics (gitignored) |
-| `livrables/My_Content_Gvishiani_George/` | OpenClassrooms submission deck (PPTX) |
 
 ---
 
@@ -53,10 +52,6 @@ All artifacts (≈ 433 MB) are bundled into the deploy zip and memory-mapped at 
 | AzureML workspace | `ocp9` (used for training; not involved in serving) |
 
 > **Note:** Azure stores the app as a Squashfs filesystem image (not a plain zip). You deploy by uploading a normal zip via `func azure functionapp publish`; Oryx converts it automatically. Never upload Squashfs directly.
-
-**Other resources in `ocp9`:** Application Insights (`p9cpu`), AzureML compute (`CF-II`, `may23-2025`), storage blobs.
-
----
 
 ## Deployed artifact manifest (all shape-verified locally)
 
@@ -222,7 +217,7 @@ POST /api/reco {"user_id":5,"k":5,"env":{"os":0,"device":0,"country":"US"}}
 
 ## What we did earlier (stable milestones)
 
-- Downloaded and audited Azure ML notebook groups from `Users/george.gvishiani/ocp9/v2` and `/notebooks`
+- Downloaded and audited Azure ML notebook groups from the production workspace notebook folders
 - Extracted consolidated evaluation metrics (popularity, CF, ALS, hybrid, LightGBM)
 - Created `CONTEXT.md` as the handoff source of truth
 - Audited and fixed stale docs in `docs/architecture/README.md`
@@ -237,7 +232,7 @@ POST /api/reco {"user_id":5,"k":5,"env":{"os":0,"device":0,"country":"US"}}
 - Fixed **country/OS/device encoding mismatch**: `top_lists.pkl` was built from training data with different encodings (OS 0–5, device 0–2, country 'US'/'FR') vs parquet values (OS 12–20, device 1–5, country uint8 '1'–'11'). All contextual lookups were silently missing → global_top fallback for every cold user
 - Rebuilt `top_lists.pkl` from `valid_clicks.parquet` via updated `src/training/build_popularity_lists.py`
 - Fixed latent crash in `_cold_reco::extend()`: `if not arr` raises `ValueError` on numpy arrays; changed to `if arr is None`
-- Redeployed to Azure via `func azure functionapp publish ocp9funcapp-recsys --python` — verified live (user 1 → `[30077, 30650, …]`, user 500 → `[37279, 48457, …]`)
+- Redeployed to Azure Functions and verified live (user 1 → `[30077, 30650, …]`, user 500 → `[37279, 48457, …]`)
 
 ### Previous session (2026-03-13)
 

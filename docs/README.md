@@ -1,6 +1,6 @@
 # Documentation
 
-Active documentation for the OCP9 hybrid recommendation system.
+Active documentation for the hybrid recommendation system.
 
 ## Navigation
 
@@ -17,7 +17,6 @@ Active documentation for the OCP9 hybrid recommendation system.
 ## Quick links
 
 - Live endpoint: `POST https://ocp9funcapp-recsys.azurewebsites.net/api/reco`
-- Azure resource group: `ocp9` (Central US)
 - Tests: `uv run pytest tests/ -v`
 
 ## Scope

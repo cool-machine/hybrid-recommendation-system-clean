@@ -1,6 +1,6 @@
 # Hybrid Recommendation System
 
-**OpenClassrooms — Projet 9 : Réalisez une application de recommandation de contenu**
+Production-grade content recommendation application with a live Streamlit demo and Azure Functions API.
 
 **Live demo**: [ai-recommender.streamlit.app](https://ai-recommender.streamlit.app) | **API**: `https://ocp9funcapp-recsys.azurewebsites.net/api/reco`
 
@@ -74,8 +74,6 @@ Full API reference: [`docs/api/README.md`](docs/api/README.md)
 
 ```
 .
-├── livrables/                   # OpenClassrooms submission zips (3 livrables)
-│
 ├── src/
 │   ├── models/                  # CF, Popularity, Reranker classes
 │   ├── training/                # Data preparation utilities
@@ -139,7 +137,7 @@ See [`deployment/DEPLOYMENT.md`](deployment/DEPLOYMENT.md) for step-by-step inst
 | [`docs/architecture/README.md`](docs/architecture/README.md) | System architecture and design |
 | [`docs/guides/getting-started.md`](docs/guides/getting-started.md) | Quick integration guide |
 | [`deployment/DEPLOYMENT.md`](deployment/DEPLOYMENT.md) | Deployment instructions |
-| [`livrables/README.md`](livrables/README.md) | Submission package index |
+| [`docs/README.md`](docs/README.md) | Documentation index |
 
 ---
 
