@@ -11,10 +11,6 @@ import pickle
 from pathlib import Path
 from typing import Any
 
-import lightgbm as lgb
-import numpy as np
-import pandas as pd
-
 
 LOGGER = logging.getLogger()
 LOGGER.setLevel(logging.INFO)
@@ -40,6 +36,8 @@ REQUIRED_ARTIFACTS = {
 
 _RUNTIME: dict[str, Any] | None = None
 _S3 = None
+np = None
+pd = None
 
 
 def _response(status_code: int, payload: dict[str, Any]) -> dict[str, Any]:
@@ -87,10 +85,16 @@ def _ensure_artifacts() -> None:
 
 
 def _load_runtime() -> dict[str, Any]:
-    global _RUNTIME
+    global _RUNTIME, np, pd
     if _RUNTIME is not None:
         return _RUNTIME
 
+    import lightgbm as lgb
+    import numpy as numpy_module
+    import pandas as pandas_module
+
+    np = numpy_module
+    pd = pandas_module
     _ensure_artifacts()
     model = lgb.Booster(model_file=str(ARTIFACT_DIR / "reranker.txt"))
     last_click = np.load(ARTIFACT_DIR / "last_click.npy", allow_pickle=True)
@@ -268,7 +272,8 @@ def _recommend(body: dict[str, Any]) -> dict[str, Any]:
 
 def lambda_handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
     method = event.get("requestContext", {}).get("http", {}).get("method", "POST")
-    path = (event.get("rawPath") or event.get("path") or "/").rstrip("/") or "/"
+    raw_path = event.get("rawPath") or event.get("path") or "/"
+    path = ("/" + raw_path.lstrip("/")).rstrip("/") or "/"
     if method == "GET" and path in {"/", "/health"}:
         return _response(
             200,

@@ -36,8 +36,8 @@ The remaining three files stay in S3 as training evidence.
 ## AWS smoke tests
 
 ```bash
-curl "$FUNCTION_URL/health"
-curl -X POST "$FUNCTION_URL/api/reco" \
+curl "${FUNCTION_URL%/}/health"
+curl -X POST "${FUNCTION_URL%/}/api/reco" \
   -H "Content-Type: application/json" \
   -d '{"user_id": 1351, "k": 10}'
 ```
