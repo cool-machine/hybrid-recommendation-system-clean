@@ -363,4 +363,4 @@ Outputs:
   ContainerRepositoryUri:
     Value: !GetAtt ContainerRepository.RepositoryUri
   GitHubDeploymentRoleArn:
-    Value: !GetAtt GitHubDeploymentRole.Arn
+    Value: !Sub arn:aws:iam::${AWS::AccountId}:role/github-ocp9-deploy
