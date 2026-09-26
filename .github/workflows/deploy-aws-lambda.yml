@@ -1,0 +1,75 @@
+name: Deploy OCP9 AWS Lambda API
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "aws_lambda/**"
+      - ".github/workflows/deploy-aws-lambda.yml"
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: ocp9-aws-lambda
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: ocp9-recommender
+  LAMBDA_FUNCTION: ocp9-recommender
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate local deployment files
+        run: |
+          python -m py_compile aws_lambda/handler.py
+          bash -n aws_lambda/upload_artifacts.sh
+
+      - name: Configure short-lived AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Validate CloudFormation template
+        run: |
+          aws cloudformation validate-template \
+            --template-body file://aws_lambda/ocp9-stack.yaml >/dev/null
+
+      - name: Sign in to Amazon ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push Lambda image
+        env:
+          ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
+        run: |
+          TAGGED_URI="$ECR_REGISTRY/$ECR_REPOSITORY:$GITHUB_SHA"
+          docker build --platform linux/amd64 --provenance=false -t "$TAGGED_URI" aws_lambda
+          docker push "$TAGGED_URI"
+          DIGEST=$(aws ecr describe-images \
+            --repository-name "$ECR_REPOSITORY" \
+            --image-ids imageTag="$GITHUB_SHA" \
+            --query 'imageDetails[0].imageDigest' \
+            --output text)
+          echo "IMAGE_URI=$ECR_REGISTRY/$ECR_REPOSITORY@$DIGEST" >> "$GITHUB_ENV"
+
+      - name: Deploy image through the OCP9 CloudFormation stack
+        run: |
+          aws cloudformation update-stack \
+            --stack-name ocp9 \
+            --use-previous-template \
+            --parameters ParameterKey=ImageUri,ParameterValue="$IMAGE_URI" \
+            --capabilities CAPABILITY_NAMED_IAM >/dev/null
+          aws cloudformation wait stack-update-complete --stack-name ocp9
+          aws cloudformation describe-stacks \
+            --stack-name ocp9 \
+            --query "Stacks[0].Outputs[?OutputKey=='FunctionUrl'].OutputValue" \
+            --output text

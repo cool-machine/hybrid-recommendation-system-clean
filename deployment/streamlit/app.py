@@ -3,8 +3,7 @@
 Run locally:
     streamlit run app.py --server.port 8501
 
-Set environment variable RECO_API_URL to your Azure Function URL
-(e.g. https://<func-name>.azurewebsites.net/api/HttpReco?code=<key>)
+Set environment variable RECO_API_URL to the deployed recommendation API URL.
 """
 from __future__ import annotations
 
@@ -129,12 +128,12 @@ if st.button("🔍 Get recommendations"):
     if not API_URL:
         st.error("API URL not configured.")
     else:
-        with st.spinner("Calling backend …"):
+        with st.spinner("Loading recommendation resources for this demo … the first request can take up to two minutes."):
             try:
                 payload: dict = {"user_id": selected_uid, "k": k}
                 if st.session_state.force_cold:
                     payload["force_cold"] = True
-                resp = requests.post(API_URL, json=payload, timeout=30)
+                resp = requests.post(API_URL, json=payload, timeout=180)
                 resp.raise_for_status()
                 data = resp.json()
             except Exception as e:
