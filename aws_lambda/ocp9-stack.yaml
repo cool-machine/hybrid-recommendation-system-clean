@@ -160,6 +160,9 @@ Resources:
                   - cloudformation:DescribeStacks
                   - cloudformation:UpdateStack
                 Resource: !Sub arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/ocp9/*
+              - Effect: Allow
+                Action: cloudformation:ValidateTemplate
+                Resource: "*"
 
   RecommendationFunction:
     Type: AWS::Lambda::Function
