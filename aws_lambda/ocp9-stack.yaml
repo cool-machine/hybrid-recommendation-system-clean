@@ -155,6 +155,9 @@ Resources:
                   StringEquals:
                     iam:PassedToService: lambda.amazonaws.com
               - Effect: Allow
+                Action: iam:GetRole
+                Resource: !GetAtt LambdaExecutionRole.Arn
+              - Effect: Allow
                 Action:
                   - cloudformation:DescribeStackEvents
                   - cloudformation:DescribeStacks
