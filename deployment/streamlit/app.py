@@ -3,7 +3,7 @@
 Run locally:
     streamlit run app.py --server.port 8501
 
-Set environment variable RECO_API_URL to the deployed recommendation API URL.
+Set OCP9_API_URL to override the default AWS recommendation API URL locally.
 """
 from __future__ import annotations
 
@@ -12,7 +12,8 @@ import os
 import requests
 import streamlit as st
 
-API_URL = os.getenv("RECO_API_URL") or os.getenv("FUNCTION_URL") or ""
+AWS_API_URL = "https://j6b3z6xge2l2pkyatv46jc6hem0gswse.lambda-url.us-east-1.on.aws/api/reco"
+API_URL = os.getenv("OCP9_API_URL") or AWS_API_URL
 MAX_USER = 65_535
 RAND_COUNT = 12
 
@@ -54,9 +55,6 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
-
-if not API_URL:
-    st.warning("Set RECO_API_URL as env var to enable backend calls.")
 
 # --- fixed demo users (verified against live API) ----------------------------
 # Warm users: 4 hits in top-10 (2 at position 1), 8 misses → ~33% recall@10

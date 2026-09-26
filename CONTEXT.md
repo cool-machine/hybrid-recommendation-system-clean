@@ -6,12 +6,12 @@
 
 ## System summary
 
-Production hybrid news recommendation system. A **Streamlit Cloud** frontend calls a **single Azure Functions endpoint** (`POST /api/reco`) that routes each user to one of two paths:
+Production hybrid news recommendation system. A **Streamlit Cloud** frontend calls a scale-to-zero **AWS Lambda Function URL** (`POST /api/reco`) that routes each user to one of two paths:
 
 - **Cold path** (no click history): context-aware popularity blend drawn from precomputed `top_lists.pkl`
 - **Warm path** (has history): 4-source candidate assembly (CF + ALS + Popularity + Two-Tower) → LightGBM reranker
 
-All artifacts (≈ 433 MB) are bundled into the deploy zip and memory-mapped at Azure Functions cold start — no external database or cache at runtime. The system covers 65 536 users and 65 536 article IDs.
+All 13 artifacts (425.5 MB) are retained in private S3. The ten serving files are downloaded into Lambda ephemeral storage, SHA-256 verified and memory-mapped on the first model request. The system covers 65 536 users and 65 536 article IDs.
 
 ---
 
@@ -21,7 +21,9 @@ All artifacts (≈ 433 MB) are bundled into the deploy zip and memory-mapped at 
 |---|---|
 | `streamlit_app.py` | Streamlit Cloud wrapper entry point |
 | `deployment/streamlit/app.py` | Canonical Streamlit frontend |
-| `deployment/azure_functions/HttpReco/__init__.py` | **Deployed production function** — artifact loading, routing, inference |
+| `aws_lambda/handler.py` | **Deployed production function** — artifact loading, routing, inference |
+| `aws_lambda/ocp9-stack.yaml` | CloudFormation ownership boundary for all OCP9-specific AWS resources |
+| `deployment/azure_functions/HttpReco/__init__.py` | Temporary Azure rollback implementation |
 | `src/service.py` | Clean OOP service layer (mirrors deployed logic) |
 | `src/config.py` | Artifact names, limits, runtime config |
 | `src/models/collaborative_filtering.py` | ItemToItemCF, ALSRecommender, TwoTowerRecommender |
@@ -39,7 +41,19 @@ All artifacts (≈ 433 MB) are bundled into the deploy zip and memory-mapped at 
 
 ---
 
-## Azure deployment (verified live 2026-03-14)
+## AWS deployment (verified live 2026-09-26)
+
+| Resource | Value |
+|---|---|
+| CloudFormation stack | `ocp9` (`us-east-1`) |
+| Lambda | `ocp9-recommender` — Python 3.12 container, 3,008 MB, 180-second timeout |
+| Live endpoint | `POST https://j6b3z6xge2l2pkyatv46jc6hem0gswse.lambda-url.us-east-1.on.aws/api/reco` |
+| Artifact bucket | `clarifiance-ocp9-artifacts-174208891400` — 13 objects, 425,514,328 bytes |
+| ECR repository | `ocp9-recommender` |
+| Deployment | GitHub Actions OIDC role `github-ocp9-deploy`; no stored AWS keys |
+| Acceptance | Warm and forced-cold outputs exactly matched Azure; first model request 25.95 s |
+
+## Azure rollback (verified live 2026-09-26)
 
 | Resource | Value |
 |---|---|
@@ -211,11 +225,15 @@ POST /api/reco {"user_id":5,"k":5,"env":{"os":0,"device":0,"country":"US"}}
 | ~~**Country stored as numeric**~~ | ~~Medium~~ | — | **FIXED 2026-03-14.** `top_lists.pkl` rebuilt from `valid_clicks.parquet`; keys now match runtime encoding (numeric OS/device codes, country as `"1"` etc.). `extend()` numpy crash also fixed. Redeployed. |
 | **Streamlit context dropdowns use wrong codes** | Low | `deployment/streamlit/app.py` lines 141-143 | The "Context" expander hardcodes OS 0–5 (Android…) and device 0–2, which don't match parquet codes ({2,3,5,12…} and {1,3,4,5}). Manual overrides from that panel still miss most segments. The demo's stored-profile path is correct; only the manual-override UI is misaligned. |
 | **Algorithm ranks 0–3 always 1001 in `src/models/reranking.py`** | Medium | `src/models/reranking.py::_build_features` | The clean OOP reranker defaults all 4 algorithm ranks to 1001. The deployed function (`__init__.py::build_features`) correctly computes them from pool position ranges. The `src/` version is diverged from production. |
-| **No health/readiness endpoint** | Low | Azure Functions | No `GET /health` — cold start check requires a real `/api/reco` POST. |
+| ~~**No health/readiness endpoint**~~ | ~~Low~~ | — | **FIXED 2026-09-26.** AWS Lambda exposes lightweight `GET /health` without loading artifacts. |
 
 ---
 
 ## What we did earlier (stable milestones)
+
+- Migrated the verified 13-file artifact set and serving API to deletion-capable AWS CloudFormation stack `ocp9`
+- Added private S3, ECR, scale-to-zero Lambda, Function URL, logs, project IAM and GitHub OIDC deployment
+- Passed exact warm/forced-cold parity against Azure; retained Azure unchanged as rollback
 
 - Downloaded and audited Azure ML notebook groups from the production workspace notebook folders
 - Extracted consolidated evaluation metrics (popularity, CF, ALS, hybrid, LightGBM)

@@ -1,16 +1,16 @@
 # Hybrid Recommendation System
 
-Production-grade content recommendation application with a live Streamlit demo and Azure Functions API.
+Production-grade content recommendation application with a live Streamlit demo and scale-to-zero AWS Lambda API.
 
-**Live demo**: [ai-recommender.streamlit.app](https://ai-recommender.streamlit.app) | **API**: `https://ocp9funcapp-recsys.azurewebsites.net/api/reco`
+**Live demo**: [ai-recommender.streamlit.app](https://ai-recommender.streamlit.app) | **API**: `https://j6b3z6xge2l2pkyatv46jc6hem0gswse.lambda-url.us-east-1.on.aws/api/reco`
 
 ---
 
 ## What This Is
 
-A production-deployed content recommendation system built for *My Content*, a start-up encouraging reading by surfacing relevant articles. Given a user ID, the system returns personalised article recommendations via a serverless Azure Functions API backed by a multi-algorithm ensemble.
+A production-deployed content recommendation system built for *My Content*, a start-up encouraging reading by surfacing relevant articles. Given a user ID, the system returns personalised article recommendations via a serverless AWS Lambda API backed by a multi-algorithm ensemble.
 
-The project covers the full ML lifecycle: data exploration, model research (three notebooks), a clean Python source package, deployment on Azure, and a Streamlit demo interface.
+The project covers the full ML lifecycle: data exploration, model research (three notebooks), a clean Python source package, deployment on AWS, and a Streamlit demo interface.
 
 ---
 
@@ -49,7 +49,7 @@ POST /api/reco  ->  cold/warm detection
 ## API
 
 ```bash
-curl -X POST "https://ocp9funcapp-recsys.azurewebsites.net/api/reco" \
+curl -X POST "https://j6b3z6xge2l2pkyatv46jc6hem0gswse.lambda-url.us-east-1.on.aws/api/reco" \
   -H "Content-Type: application/json" \
   -d '{"user_id": 1001, "k": 5}'
 ```
@@ -82,8 +82,9 @@ Full API reference: [`docs/api/README.md`](docs/api/README.md)
 │   └── config.py                # Configuration management
 │
 ├── deployment/
-│   ├── azure_functions/         # Production Azure Functions backend
+│   ├── azure_functions/         # Temporary Azure rollback backend
 │   └── streamlit/               # Streamlit web interface
+├── aws_lambda/                  # AWS handler, container and CloudFormation stack
 │
 ├── notebooks/
 │   ├── collaborative-filtering.ipynb
@@ -105,8 +106,8 @@ Full API reference: [`docs/api/README.md`](docs/api/README.md)
 ## Quick Start
 
 ```bash
-git clone https://github.com/cool-machine/hybrid-recommendation-system.git
-cd hybrid-recommendation-system
+git clone https://github.com/cool-machine/hybrid-recommendation-system-clean.git
+cd hybrid-recommendation-system-clean
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 pytest tests/
@@ -115,7 +116,7 @@ pytest tests/
 To run the Streamlit interface locally:
 
 ```bash
-export RECO_API_URL="https://ocp9funcapp-recsys.azurewebsites.net/api/reco"
+export OCP9_API_URL="https://j6b3z6xge2l2pkyatv46jc6hem0gswse.lambda-url.us-east-1.on.aws/api/reco"
 streamlit run deployment/streamlit/app.py
 ```
 
@@ -125,7 +126,7 @@ streamlit run deployment/streamlit/app.py
 
 See [`deployment/DEPLOYMENT.md`](deployment/DEPLOYMENT.md) for step-by-step instructions.
 
-**Note on model artifacts**: The trained model files (~406 MB total: `.npy` arrays, LightGBM model, popularity tables) are excluded from Git due to size. They are deployed directly into the Azure Functions runtime environment.
+**Note on model artifacts**: The 13 verified runtime/training-evidence files (425.5 MB total) are excluded from Git. They are stored in the private stack-owned S3 bucket; the Lambda downloads and hash-verifies the ten serving files on cold start.
 
 ---
 
@@ -143,7 +144,7 @@ See [`deployment/DEPLOYMENT.md`](deployment/DEPLOYMENT.md) for step-by-step inst
 
 ## Tech Stack
 
-**Backend**: Python 3.10+, Azure Functions v2
+**Backend**: Python 3.12, AWS Lambda container, S3, ECR, CloudFormation
 **ML**: NumPy, SciPy, LightGBM, implicit (ALS)
 **Frontend**: Streamlit
 **Testing**: pytest

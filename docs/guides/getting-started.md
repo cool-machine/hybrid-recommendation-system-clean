@@ -5,7 +5,7 @@ Quick guide to call the recommender API and run the Streamlit demo.
 ## 1) Call the API
 
 ```bash
-curl -X POST "https://ocp9funcapp-recsys.azurewebsites.net/api/reco" \
+curl -X POST "https://j6b3z6xge2l2pkyatv46jc6hem0gswse.lambda-url.us-east-1.on.aws/api/reco" \
   -H "Content-Type: application/json" \
   -d '{"user_id": 1001, "k": 5}'
 ```
@@ -18,7 +18,7 @@ You should receive a JSON response containing:
 ## 2) Try context overrides
 
 ```bash
-curl -X POST "https://ocp9funcapp-recsys.azurewebsites.net/api/reco" \
+curl -X POST "https://j6b3z6xge2l2pkyatv46jc6hem0gswse.lambda-url.us-east-1.on.aws/api/reco" \
   -H "Content-Type: application/json" \
   -d '{
     "user_id": 1001,
@@ -38,13 +38,13 @@ streamlit run deployment/streamlit/app.py --server.port 8501
 Set backend URL before launch:
 
 ```bash
-export RECO_API_URL="https://ocp9funcapp-recsys.azurewebsites.net/api/reco"
+export OCP9_API_URL="https://j6b3z6xge2l2pkyatv46jc6hem0gswse.lambda-url.us-east-1.on.aws/api/reco"
 ```
 
 ## Notes
 
 - There is no public `GET /health` endpoint for this deployment.
-- First API call may be slower due to Azure Functions cold start.
+- First model call may take about 26 seconds while Lambda imports dependencies, downloads artifacts and verifies hashes.
 - For cold users, context has stronger influence than for warm users.
 
 ## Related docs

@@ -1,6 +1,6 @@
 # System Architecture
 
-> Canonical architecture reference. For algorithm details and performance metrics see [`ALGORITHMS.md`](../../ALGORITHMS.md). For the session handoff state see [`CONTEXT.md`](../../CONTEXT.md). For how every artifact was computed and where it lives in Azure see [`docs/artifacts.md`](../artifacts.md).
+> Canonical architecture reference. For algorithm details and performance metrics see [`ALGORITHMS.md`](../../ALGORITHMS.md). For the session handoff state see [`CONTEXT.md`](../../CONTEXT.md). For how every artifact was computed and where it lives in AWS see [`docs/artifacts.md`](../artifacts.md).
 
 ---
 
@@ -8,14 +8,15 @@
 
 ```
 ┌─────────────────────┐       POST /api/reco        ┌────────────────────────────────┐
-│  Streamlit Cloud UI │  ─────────────────────────►  │  Azure Functions               │
-│  deployment/        │                              │  ocp9funcapp-recsys            │
-│  streamlit/app.py   │  ◄─────────────────────────  │  (Python 3.10, Consumption)    │
+│  Streamlit Cloud UI │  ─────────────────────────►  │  AWS Lambda container          │
+│  deployment/        │                              │  ocp9-recommender              │
+│  streamlit/app.py   │  ◄─────────────────────────  │  (Python 3.12, scale to zero)  │
 └─────────────────────┘      JSON response           └──────────────┬─────────────────┘
                                                                      │ memory-mapped at cold start
                                                                      ▼
                                                       ┌─────────────────────────────┐
-                                                      │  Artifacts (433 MB bundle)  │
+                                                      │  Private versioned S3       │
+                                                      │  artifacts (425.5 MB)       │
                                                       │  .npy arrays + .pkl + .txt  │
                                                       │  + .parquet                 │
                                                       └─────────────────────────────┘
@@ -23,22 +24,22 @@
 
 ---
 
-## Azure Resources (verified 2026-03-13)
+## AWS Resources (verified 2026-09-26)
 
 | Resource | Name | Detail |
 |---|---|---|
-| Resource group | `ocp9` | Central US |
-| Function App | `ocp9funcapp-recsys` | **Running** · Python 3.10 · Consumption plan |
-| Endpoint | `https://ocp9funcapp-recsys.azurewebsites.net/api/reco` | Anonymous auth, single POST route |
-| Storage account | `ocp95449056669` | Standard LRS · StorageV2 |
-| Last deploy zip | `scm-latest-ocp9funcapp-recsys.zip` | 433 MB · deployed 2025-08-22 |
-| AzureML workspace | `ocp9` | Used for training only; not involved in serving |
+| CloudFormation stack | `ocp9` | `us-east-1`; owns all OCP9-specific AWS resources |
+| Lambda | `ocp9-recommender` | Python 3.12 container · 3,008 MB · scales to zero |
+| Endpoint | `https://j6b3z6xge2l2pkyatv46jc6hem0gswse.lambda-url.us-east-1.on.aws/api/reco` | Anonymous auth, single POST route |
+| S3 bucket | `clarifiance-ocp9-artifacts-174208891400` | Private, encrypted, versioned; 13 verified objects |
+| ECR repository | `ocp9-recommender` | Private immutable deployment images |
+| GitHub deployment role | `github-ocp9-deploy` | Repository/branch-scoped OIDC; no stored AWS keys |
 
 ---
 
 ## Deployed Artifact Manifest
 
-All files are bundled inside the deploy zip and memory-mapped at Function App cold start.
+All 13 verified files are retained in S3. The ten serving artifacts are downloaded to Lambda encrypted ephemeral storage, hash-verified and memory-mapped on the first model request.
 
 | File | Shape / Type | What it encodes |
 |---|---|---|
@@ -238,17 +239,17 @@ topk_ids = [cand[i] for i in argsort(-scores)[:k]]
 
 ```bash
 # Warm user
-curl -X POST https://ocp9funcapp-recsys.azurewebsites.net/api/reco \
+curl -X POST https://j6b3z6xge2l2pkyatv46jc6hem0gswse.lambda-url.us-east-1.on.aws/api/reco \
   -H "Content-Type: application/json" -d '{"user_id":1,"k":5}'
 # → {"recommendations":[30077,30650,26551,31411,30545],"ground_truth":36162,...}
 
 # Near-cold user (global pop articles visible: #29902, #9999)
-curl -X POST https://ocp9funcapp-recsys.azurewebsites.net/api/reco \
+curl -X POST https://j6b3z6xge2l2pkyatv46jc6hem0gswse.lambda-url.us-east-1.on.aws/api/reco \
   -H "Content-Type: application/json" -d '{"user_id":0,"k":5}'
 # → {"recommendations":[5747,3436,29902,9999,8574],"ground_truth":26859,...}
 
 # Env override — overrides_applied: true, different recommendations returned
-curl -X POST https://ocp9funcapp-recsys.azurewebsites.net/api/reco \
+curl -X POST https://j6b3z6xge2l2pkyatv46jc6hem0gswse.lambda-url.us-east-1.on.aws/api/reco \
   -H "Content-Type: application/json" \
   -d '{"user_id":5,"k":5,"env":{"os":0,"device":0,"country":"US"}}'
 # → {"recommendations":[3160,27647,27947,11385,30119],...,"overrides_applied":true}
@@ -268,9 +269,9 @@ curl -X POST https://ocp9funcapp-recsys.azurewebsites.net/api/reco \
 
 The clean OOP reranker always sets algorithm ranks 0–3 to 1001 (the sentinel). The deployed function (`HttpReco/__init__.py::build_features`) correctly infers ranks from candidate pool position ranges. The `src/` version needs to be brought into sync, or explicitly documented as a simplified version.
 
-### 3. No health endpoint (Low)
+### 3. Health endpoint (resolved)
 
-No `GET /health` or `GET /status` route. Cold-start monitoring requires a real `POST /api/reco` call.
+`GET /health` now provides a lightweight status response without loading model artifacts.
 
 ---
 
@@ -295,12 +296,12 @@ Full algorithm details, hyperparameter search results, and design rationale: see
 
 | Concern | Production path | Clean OOP path |
 |---|---|---|
-| Artifact loading | `deployment/azure_functions/HttpReco/__init__.py` lines 23–77 | `src/service.py::_load_auxiliary_data` |
-| Cold routing | `__init__.py::http_reco` | `src/service.py::_is_cold_user` |
-| Cold-start logic | `__init__.py::_cold_reco` | `src/models/popularity.py::ContextualPopularity` |
-| Candidate assembly | `__init__.py::get_candidates` | `src/service.py::_generate_candidate_pool` |
-| Feature engineering | `__init__.py::build_features` | `src/models/reranking.py::_build_features` ⚠️ (diverged) |
-| LightGBM inference | `__init__.py::http_reco` warm branch | `src/models/reranking.py::rerank` |
+| Artifact loading | `aws_lambda/handler.py::_load_runtime` | `src/service.py::_load_auxiliary_data` |
+| Cold routing | `aws_lambda/handler.py::_recommend` | `src/service.py::_is_cold_user` |
+| Cold-start logic | `aws_lambda/handler.py::_recommend` | `src/models/popularity.py::ContextualPopularity` |
+| Candidate assembly | `aws_lambda/handler.py::_candidates` | `src/service.py::_generate_candidate_pool` |
+| Feature engineering | `aws_lambda/handler.py::_features` | `src/models/reranking.py::_build_features` ⚠️ (diverged) |
+| LightGBM inference | `aws_lambda/handler.py::_recommend` warm branch | `src/models/reranking.py::rerank` |
 
 ---
 
@@ -308,9 +309,9 @@ Full algorithm details, hyperparameter search results, and design rationale: see
 
 | Layer | Technology |
 |---|---|
-| API | Azure Functions v2 · Python decorator model · anonymous auth |
+| API | AWS Lambda container · Function URL · anonymous auth |
 | ML inference | NumPy · LightGBM · (all artifacts precomputed offline) |
 | Data loading | pandas · pyarrow (parquet) |
 | Frontend | Streamlit (Streamlit Cloud) |
 | Testing | pytest · unittest.mock |
-| Local dev | Azure Functions Core Tools |
+| Infrastructure | CloudFormation · ECR · private S3 · GitHub OIDC |

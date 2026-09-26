@@ -1,6 +1,6 @@
 # Artifact Reference
 
-> Every file deployed to Azure Functions — what type it is, how it was computed, where it lives in Azure, and exactly what role it plays during a live request.
+> Every retained artifact — what type it is, how it was computed, where it lives in AWS, and exactly what role it plays during a live request.
 
 ---
 
@@ -17,27 +17,26 @@ Understanding the difference between these types answers the core question: **is
 
 ---
 
-## Azure storage location
+## AWS storage location
 
-All artifacts are bundled together inside a single deploy zip. There is no separate blob storage lookup at inference time — everything is loaded from the local file system of the running Azure Functions instance.
+All 13 artifacts are stored in the private, encrypted and versioned S3 bucket owned by CloudFormation stack `ocp9`. On a cold model request, Lambda downloads the ten serving files to `/tmp/ocp9-artifacts`, verifies their SHA-256 hashes and memory-maps the arrays. Warm requests reuse that execution environment.
 
 | Resource | Value |
 |---|---|
-| Storage account | `ocp95449056669` (Standard LRS, StorageV2) |
-| Container | `scm-releases` |
-| Blob name | `scm-latest-ocp9funcapp-recsys.zip` |
-| Zip size | 433 MB |
-| Deployed | 2025-08-22 |
-| Path inside zip | `external_runtime_assets/azure/artifacts/` |
+| S3 bucket | `clarifiance-ocp9-artifacts-174208891400` |
+| Prefix | `artifacts/` |
+| Object count / bytes | 13 / 425,514,328 |
+| Runtime cache | `/tmp/ocp9-artifacts/` |
+| Integrity | Fixed SHA-256 manifest in `aws_lambda/handler.py` and upload script |
 | Local mirror (dev) | `secondary_assets/external_runtime_assets/azure/artifacts/` |
 
-When the Azure Functions runtime starts (cold start), it extracts the zip and the function code finds artifacts at:
+The Lambda handler uses:
 
 ```python
-ROOT / "external_runtime_assets" / "azure" / "artifacts"
+Path(os.environ.get("OCP9_ARTIFACT_DIR", "/tmp/ocp9-artifacts"))
 ```
 
-where `ROOT` is the grandparent of the function's `__init__.py`.
+The environment override is used only for local verification; production downloads from S3.
 
 ---
 

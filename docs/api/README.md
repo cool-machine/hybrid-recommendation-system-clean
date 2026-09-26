@@ -8,8 +8,8 @@
 
 | Environment | URL |
 |---|---|
-| Production | `https://ocp9funcapp-recsys.azurewebsites.net/api` |
-| Local (Azure Functions Core Tools) | `http://localhost:7071/api` |
+| Production | `https://j6b3z6xge2l2pkyatv46jc6hem0gswse.lambda-url.us-east-1.on.aws/api` |
+| Local override | Set `OCP9_API_URL` for the Streamlit frontend |
 
 No authentication required (anonymous auth level).
 
@@ -101,17 +101,17 @@ See [`docs/architecture/README.md`](../architecture/README.md) for the full pipe
 
 ```bash
 # Basic warm-user request
-curl -X POST "https://ocp9funcapp-recsys.azurewebsites.net/api/reco" \
+curl -X POST "https://j6b3z6xge2l2pkyatv46jc6hem0gswse.lambda-url.us-east-1.on.aws/api/reco" \
   -H "Content-Type: application/json" \
   -d '{"user_id": 1, "k": 5}'
 
 # With context override (activates contextual cold-start tables)
-curl -X POST "https://ocp9funcapp-recsys.azurewebsites.net/api/reco" \
+curl -X POST "https://j6b3z6xge2l2pkyatv46jc6hem0gswse.lambda-url.us-east-1.on.aws/api/reco" \
   -H "Content-Type: application/json" \
   -d '{"user_id": 5, "k": 5, "env": {"device": 0, "os": 0, "country": "US"}}'
 
 # Out-of-range user → 400
-curl -X POST "https://ocp9funcapp-recsys.azurewebsites.net/api/reco" \
+curl -X POST "https://j6b3z6xge2l2pkyatv46jc6hem0gswse.lambda-url.us-east-1.on.aws/api/reco" \
   -H "Content-Type: application/json" \
   -d '{"user_id": 99999, "k": 5}'
 ```
@@ -120,7 +120,7 @@ curl -X POST "https://ocp9funcapp-recsys.azurewebsites.net/api/reco" \
 
 ## Notes
 
-- **No `GET /health` endpoint.** Cold-start monitoring requires a real `POST /api/reco` call.
-- **First call per instance is slower** (~5–10 s) due to Azure Functions cold start loading ~433 MB of artifacts.
+- **`GET /health` is lightweight.** It reports whether the recommendation artifacts are already loaded.
+- **First model call per instance is slower** (about 26 s in acceptance testing) while Lambda imports the scientific stack, downloads the serving artifacts from S3 and verifies their hashes.
 - Warm requests are sub-second.
 - The `ground_truth` field is for demo/evaluation display in the Streamlit UI; it is always null in a real production deployment where the true next click is unknown.
